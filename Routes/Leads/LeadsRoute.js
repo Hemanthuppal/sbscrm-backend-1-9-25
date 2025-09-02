@@ -46,6 +46,40 @@ router.get("/contacts/:id", (req, res) => {
     });
 });
 
+router.get('/categories', async (req, res) => {
+  try {
+    const [result] = await db.query('SELECT DISTINCT category FROM products ORDER BY category');
+    const categories = result.map((row, index) => ({
+      id: index + 1,
+      name: row.category,
+    }));
+    res.json(categories);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch categories' });
+  }
+});
+
+// Get products by category
+router.get('/products', async (req, res) => {
+  const { category } = req.query;
+  if (!category) return res.status(400).json({ error: 'Category is required' });
+
+  try {
+    const [result] = await db.query(
+      'SELECT id, description, cat_nr FROM products WHERE category = ?',
+      [category]
+    );
+    const products = result.map(product => ({
+      id: product.id,
+      name: `${product.description} (${product.cat_nr})`,
+    }));
+    res.json(products);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
 
 
 module.exports = router;
