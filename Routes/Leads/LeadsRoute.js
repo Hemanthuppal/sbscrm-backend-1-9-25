@@ -1,9 +1,9 @@
-// routes/leadRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const db = require('./../../Config/db');
 
-// Get leads
+
 router.get("/contacts/:id", (req, res) => {
     const contactId = req.params.id;
 

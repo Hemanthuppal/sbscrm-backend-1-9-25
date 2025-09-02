@@ -1,14 +1,14 @@
 const mysql = require('mysql2');
 
-// Create a pool instead of single connection
+
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
-  password: '', // Replace with your DB password
-  database: 'sbs',
+  password: '', 
+  database: 'sbs_crm_new',
   waitForConnections: true,
-  connectionLimit: 10,  // Number of connections in pool
-  queueLimit: 0         // Unlimited queueing
+  connectionLimit: 10,  
+  queueLimit: 0         
 });
 
 
