@@ -5,7 +5,7 @@ const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
   password: '', // Replace with your DB password
-  database: 'sbs_crm',
+  database: 'sbs',
   waitForConnections: true,
   connectionLimit: 10,  // Number of connections in pool
   queueLimit: 0         // Unlimited queueing
