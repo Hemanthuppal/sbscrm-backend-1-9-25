@@ -540,16 +540,42 @@ app.get("/api/contacts", (req, res) => {
 // IMAP CONFIG
 // =========================
 const imapConfig = {
-    imap: {
-        user: process.env.MAIL_USER,
-        password: process.env.MAIL_APP_PASS,
-        host: "imap.gmail.com",
-        port: 993,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-        authTimeout: 10000,
-    },
+  imap: {
+    user: process.env.MAIL_USER,
+    password: process.env.MAIL_APP_PASS,
+    host: "imap.gmail.com",
+    port: 993,
+    tls: true,
+    connTimeout: 20000,
+    authTimeout: 20000,
+    socketTimeout: 60000,
+    // TEMP: bypass invalid chain while you fix the network policy
+    tlsOptions: { rejectUnauthorized: false },
+    debug: (msg) => console.log("[imap-debug]", msg),
+  },
 };
+
+
+const net = require("net");
+function testPort(host, port) {
+  return new Promise((resolve, reject) => {
+    const s = net.createConnection({ host, port, timeout: 8000 }, () => {
+      s.end(); resolve(true);
+    });
+    s.on("error", reject);
+    s.on("timeout", () => { s.destroy(); reject(new Error("timeout")); });
+  });
+}
+
+(async () => {
+  try {
+    await testPort("imap.gmail.com", 993);
+    console.log("TCP to imap.gmail.com:993 OK");
+  } catch (e) {
+    console.error("Cannot reach imap.gmail.com:993:", e.message);
+  }
+})();
+
 
 // =========================
 // SCHEDULER
