@@ -2,60 +2,115 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../Config/db'); // mysql2 or mysql connection
 
-// Assign user (manager or associate) to organization
-router.put('/leadcrm/:id/assign-user', async (req, res) => {
+
+router.get('/lead-assignments', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { assigned_by, assigned_to } = req.body;
+    const [assignments] = await db.query(`
+      SELECT 
+        el.id AS lead_id,
+        el.assigned_by,
+        el.assigned_to,
+        e1.name AS assigned_to_name,
+        e1.role AS assigned_to_role,
+        e2.name AS manager_name,
+        e2.id AS manager_id
+      FROM emailleads el
+      LEFT JOIN employees e1 ON el.assigned_to = e1.id
+      LEFT JOIN employees e2 ON e1.managerId = e2.id
+      WHERE el.assigned_to IS NOT NULL OR el.assigned_by IS NOT NULL
+    `);
 
-    console.log(`Assigning user. Lead ID: ${id}, Assigned By: ${assigned_by}, Assigned To: ${assigned_to}`);
+    const assignmentsByLeadId = assignments.reduce((acc, assignment) => {
+      const role = assignment.assigned_to_role;
+      acc[assignment.lead_id] = {
+        assigned_by: assignment.assigned_by || null,
+        assigned_to: assignment.assigned_to || null,
+        assigned_to_name: assignment.assigned_to_name || 'Unassigned',
+        assigned_to_role: role || null,
+        manager_id: (role === 'manager' || role === 'admin') ? assignment.assigned_to : assignment.manager_id || null,
+        manager_name: (role === 'manager' || role === 'admin') ? assignment.assigned_to_name : assignment.manager_name || 'No Manager',
+        associate_id: role === 'employee' ? assignment.assigned_to : null,
+        associate_name: role === 'employee' ? assignment.assigned_to_name : null
+      };
+      return acc;
+    }, {});
 
-    if (!assigned_by || !assigned_to) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
+    res.json(assignmentsByLeadId);
+  } catch (err) {
+    console.error('Error fetching lead assignments:', err);
+    res.status(500).json({ message: 'Database error' });
+  }
+});
 
-    // ✅ Promise wrapper for queries
-    const query = (sql, params) =>
-      new Promise((resolve, reject) => {
-        db.query(sql, params, (err, results) => {
-          if (err) reject(err);
-          else resolve(results);
-        });
-      });
+router.put('/leadcrm/:leadId/assign-user', async (req, res) => {
+  const { leadId } = req.params;
+  const { assigned_by, assigned_to } = req.body;
 
-    // Check if lead exists
-    const lead = await query('SELECT * FROM emailleads WHERE id = ?', [id]);
-    if (lead.length === 0) {
+  if (!assigned_by || !assigned_to) {
+    return res.status(400).json({ message: 'assigned_by and assigned_to are required' });
+  }
+
+  try {
+    // Validate lead
+    const [leadExists] = await db.query('SELECT id FROM emailleads WHERE id = ?', [leadId]);
+    if (leadExists.length === 0) {
       return res.status(404).json({ message: 'Lead not found' });
     }
 
-    // Update emailleads with assigned_by and assigned_to (stored as VARCHAR)
-    const updateResult = await query(
-      'UPDATE emailleads SET assigned_by = ?, assigned_to = ? WHERE id = ?',
-      [assigned_by.toString(), assigned_to.toString(), id]
-    );
-
-    if (updateResult.affectedRows === 0) {
-      return res.status(400).json({ message: 'Update failed (no rows affected)' });
+    // Validate employee
+    const [employeeExists] = await db.query('SELECT id FROM employees WHERE id = ?', [assigned_to]);
+    if (employeeExists.length === 0) {
+      return res.status(404).json({ message: 'Employee not found' });
     }
 
-    // Insert into assignment_history (stored as INT)
-    const createdAt = new Date();
-    const historyResult = await query(
-      'INSERT INTO assignment_history (lead_id, assigned_by, assigned_to, created_at) VALUES (?, ?, ?, ?)',
-      [id, parseInt(assigned_by), parseInt(assigned_to), createdAt]
+    // Update assignment
+    await db.query(
+      'UPDATE emailleads SET assigned_by = ?, assigned_to = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [assigned_by, assigned_to, leadId]
     );
 
+    // Fetch updated assignment
+    const [updatedAssignment] = await db.query(
+      `
+      SELECT 
+        el.id AS lead_id,
+        el.assigned_by,
+        el.assigned_to,
+        e1.name AS assigned_to_name,
+        e1.role AS assigned_to_role,
+        e2.name AS manager_name,
+        e2.id AS manager_id
+      FROM emailleads el
+      LEFT JOIN employees e1 ON el.assigned_to = e1.id
+      LEFT JOIN employees e2 ON e1.managerId = e2.id
+      WHERE el.id = ?
+      `,
+      [leadId]
+    );
+
+    const updated = updatedAssignment[0] || {};
+    const role = updated.assigned_to_role;
+    const data = {
+      assigned_by: updated.assigned_by || null,
+      assigned_to: updated.assigned_to || null,
+      assigned_to_name: updated.assigned_to_name || 'Unassigned',
+      assigned_to_role: role || null,
+      manager_id: (role === 'manager' || role === 'admin') ? updated.assigned_to : updated.manager_id || null,
+      manager_name: (role === 'manager' || role === 'admin') ? updated.assigned_to_name : updated.manager_name || 'No Manager',
+      associate_id: role === 'employee' ? updated.assigned_to : null,
+      associate_name: role === 'employee' ? updated.assigned_to_name : null
+    };
+
     res.json({
-      success: true,
-      message: 'Assignment saved and history logged successfully',
-      updatedRows: updateResult.affectedRows,
-      historyId: historyResult.insertId
+      message: 'Assignment updated successfully',
+      data,
     });
-  } catch (error) {
-    console.error('Unexpected error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+  } catch (err) {
+    console.error('Error updating assignment:', err);
+    res.status(500).json({ message: 'Database error' });
   }
 });
+
+
 
 module.exports = router;
