@@ -43,6 +43,54 @@ router.get("/contacts", async (req, res) => {
 });
 
 
+//manager
+router.get('/contacts/:userid', async (req, res) => {
+  try {
+    const { userid } = req.params;
+
+    if (!userid || isNaN(userid)) {
+      return res.status(400).json({ message: 'Invalid userId' });
+    }
+
+    const [results] = await db.query(`
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at, l.assigned_by, l.assigned_to
+      FROM emailleads l
+      LEFT JOIN employees e ON l.assigned_to = e.id
+      WHERE l.assigned_to = ? OR e.managerId = ?
+    `, [userid, userid]);
+
+    if (results.length === 0) {
+      return res.json([]);
+    }
+
+    const contactIds = results.map(contact => contact.id);
+
+    const [productResults] = await db.query(`
+      SELECT p.lead_id, p.unit, p.pr_no, p.pr_date, p.legacy_code, p.item_code, p.item_description, p.uom, p.pr_quantity
+      FROM emailproducts p
+      WHERE p.lead_id IN (?)
+    `, [contactIds]);
+
+    const productsByLeadId = productResults.reduce((acc, product) => {
+      if (!acc[product.lead_id]) {
+        acc[product.lead_id] = [];
+      }
+      acc[product.lead_id].push(product);
+      return acc;
+    }, {});
+
+    results.forEach(contact => {
+      contact.products = productsByLeadId[contact.id] || [];
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching contacts:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+
 router.get("/contacts/:id", (req, res) => {
     const contactId = req.params.id;
 
