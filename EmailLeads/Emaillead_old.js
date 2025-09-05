@@ -133,8 +133,11 @@ async function insertOrUpdateContact(data) {
       const nProduct = normalizeProduct(product);
       try {
         const { matches, is_ambiguous } = await matchProductWithDatabase(product);
-        
-        // Insert into emailproducts
+        matchedProducts.push({
+          emailProduct: { ...nProduct, is_ambiguous },
+          matchedDbProducts: matches,
+        });
+
         const sqlProduct = `
           INSERT INTO emailproducts 
             (lead_id, unit, pr_no, pr_date, legacy_code, item_code, item_description, uom, pr_quantity)
@@ -153,42 +156,7 @@ async function insertOrUpdateContact(data) {
           nProduct.pr_quantity,
         ];
 
-        const [productResult] = await db.query(sqlProduct, paramsProduct);
-        const productId = productResult.insertId;
-
-        // Store matched products in matched_products table
-        for (const match of matches) {
-          const sqlMatchedProduct = `
-            INSERT INTO matched_products 
-              (lead_id, email_product_id, maincategory_name, subcategory_name, product_name, 
-               batch, description, size, hsncode, gstrate, listprice, moq, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `;
-
-          const paramsMatchedProduct = [
-            leadId,
-            productId,
-            match.maincategory_name,
-            match.subcategory_name,
-            match.product_name,
-            match.batch,
-            match.description,
-            match.size,
-            match.hsncode,
-            match.gstrate,
-            match.listprice,
-            match.moq,
-            match.created_at
-          ];
-
-          await db.query(sqlMatchedProduct, paramsMatchedProduct);
-        }
-
-        matchedProducts.push({
-          emailProduct: { ...nProduct, is_ambiguous },
-          matchedDbProducts: matches,
-        });
-
+        await db.query(sqlProduct, paramsProduct);
         insertedProducts++;
       } catch (matchErr) {
         console.error("Product matching error:", matchErr);

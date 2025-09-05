@@ -10,7 +10,7 @@ const QuotationRoutes = require('./Routes/Quotations/QuotationRoutes');
 const ProductRoutes = require('./Routes/Products/ProductRoutes')
 const Assignment = require('./Routes/Assign/assignmentRoute');
 const Comment = require('./Routes/Comments/Comments');
-// const { fetchAndProcessEmails } = require('./EmailLeads/Eamilleads');
+const { fetchAndProcessEmails } = require('./EmailLeads/Eamilleads');
 const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -31,10 +31,10 @@ app.use('/api', Assignment);
 app.use('/api', Comment);
  
 
-// const POLL_MS = Number(process.env.IMAP_POLL_MS || 120000);
-// setInterval(fetchAndProcessEmails, POLL_MS);
-// console.log("Starting email processing with interval:", POLL_MS / 1000, "seconds");
-// fetchAndProcessEmails();
+const POLL_MS = Number(process.env.IMAP_POLL_MS || 120000);
+setInterval(fetchAndProcessEmails, POLL_MS);
+console.log("Starting email processing with interval:", POLL_MS / 1000, "seconds");
+fetchAndProcessEmails();
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
