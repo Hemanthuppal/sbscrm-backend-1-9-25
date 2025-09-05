@@ -13,26 +13,27 @@ const upload = multer({ storage });
 // POST /send-quotation
 router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
   try {
-   const {
-  email,
-  name,
-  lead_id,
-  quotationNumber,
-  quotationDate,
-  subtotal,
-  gst,
-  total_amount,
-} = req.body;
-
+    const {
+      email,
+      name,
+      lead_id,
+      quotationNumber,
+      quotationDate,
+      subtotal,
+      gst,
+      total_amount,
+      products, // ✅ received as JSON string
+    } = req.body;
 
     const pdfBuffer = req.file.buffer;
 
     // 1️⃣ Save quotation in DB
     const query = `
       INSERT INTO quotations 
-        (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount) 
-      VALUES (?, ?, ?, ?, ?, ?)
+        (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
+
     await db.query(query, [
       lead_id,
       quotationNumber,
@@ -40,6 +41,7 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       subtotal,
       gst,
       total_amount,
+      products, // ✅ already stringified JSON
     ]);
 
     console.log("Quotation stored in DB successfully");
@@ -71,11 +73,10 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
     res.json({ success: true, message: "Quotation saved & sent successfully" });
   } catch (err) {
     console.error("Error in send-quotation:", err);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to save/send quotation" });
+    res.status(500).json({ success: false, error: "Failed to save/send quotation" });
   }
 });
+
 
 
 

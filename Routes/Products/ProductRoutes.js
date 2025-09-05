@@ -346,6 +346,21 @@ router.get("/email-products/:leadId", async (req, res) => {
   }
 });
 
+// Get email-products by lead_id
+router.get("/all-email-products/:leadId", async (req, res) => {
+  const { leadId } = req.params;
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM matched_products WHERE lead_id = ? ORDER BY id DESC",
+      [leadId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching email products:", err);
+    res.status(500).json({ error: "Database query failed" });
+  }
+});
+
 
 
 
