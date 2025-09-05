@@ -9,6 +9,10 @@ const GetemployeebyidRoute = require('./Routes/Users/getemployeebyidRoute');
 const QuotationRoutes = require('./Routes/Quotations/QuotationRoutes');
 const ProductRoutes = require('./Routes/Products/ProductRoutes')
 const Assignment = require('./Routes/Assign/assignmentRoute');
+const SendQuotationRoutes = require('./Routes/Quotations/SendQuotationRoutes');
+
+
+
 const Comment = require('./Routes/Comments/Comments');
 const { fetchAndProcessEmails } = require('./EmailLeads/Eamilleads');
 const path = require("path");
@@ -28,6 +32,7 @@ app.use('/api', GetemployeebyidRoute);
 app.use('/api', QuotationRoutes);
 app.use('/api', ProductRoutes);
 app.use('/api', Assignment);
+app.use('/api',SendQuotationRoutes);
 app.use('/api', Comment);
  
 

@@ -293,6 +293,60 @@ router.post('/product-details', async (req, res) => {
     if (connection) connection.release();
   }
 });
+router.get("/all-details", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+          mc.maincategory_id,
+          mc.maincategory_name,
+          sc.subcategory_id,
+          sc.subcategory_name,
+          p.product_id,
+          p.product_name,
+          pd.detail_id,
+          pd.batch,
+          pd.description,
+          pd.size,
+          pd.hsncode,
+          pd.gstrate,
+          pd.listprice,
+          pd.moq,
+          pd.created_at
+      FROM product_details pd
+      LEFT JOIN main_category mc ON pd.maincategory_id = mc.maincategory_id
+      LEFT JOIN sub_category sc ON pd.subcategory_id = sc.subcategory_id
+      LEFT JOIN product_name p ON pd.product_id = p.product_id
+      ORDER BY pd.detail_id DESC
+    `;
+
+    const [results] = await db.query(query); // ✅ no callback here
+    res.json(results);
+
+  } catch (err) {
+    console.error("Error executing query:", err);
+    res.status(500).json({ error: "Database query failed" });
+  }
+});
+
+
+
+
+// Get email-products by lead_id
+router.get("/email-products/:leadId", async (req, res) => {
+  const { leadId } = req.params;
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM emailproducts WHERE lead_id = ? ORDER BY id DESC",
+      [leadId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching email products:", err);
+    res.status(500).json({ error: "Database query failed" });
+  }
+});
+
+
 
 
 module.exports = router;
