@@ -8,7 +8,7 @@ router.get("/contacts", async (req, res) => {
   try {
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at
-      FROM emailleads l
+      FROM emailleads l  ORDER BY l.created_at DESC
     `);
 
     if (results.length === 0) {
