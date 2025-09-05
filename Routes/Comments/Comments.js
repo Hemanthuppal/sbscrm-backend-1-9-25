@@ -65,4 +65,44 @@ router.post('/comments/add', async (req, res) => {
   }
 });
 
+
+router.get('/leadsoppcomment/:leadid', async (req, res) => {
+  const { leadid } = req.params;
+
+  // Queries
+  const queries = {
+    addLeads: 'SELECT * FROM emailleads WHERE id = ?',
+    comments: 'SELECT * FROM comments WHERE leadid = ?',
+  };
+
+  try {
+    // Execute queries in parallel
+    const [lead, comments] = await Promise.all([
+      new Promise((resolve, reject) => {
+        db.query(queries.addLeads, [leadid], (err, results) => {
+          if (err) reject(err);
+          else resolve(results.length > 0 ? results[0] : null);
+        });
+      }),
+      new Promise((resolve, reject) => {
+        db.query(queries.comments, [leadid], (err, results) => {
+          if (err) reject(err);
+          else resolve(results.length > 0 ? results : []);
+        });
+      }),
+    ]);
+
+    // Send API response
+    res.json({
+      lead: lead || null,
+      comments: comments,
+      totalComments: comments.length,
+    });
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    res.status(500).json({ error: 'Failed to fetch data' });
+  }
+});
+
+
 module.exports = router;

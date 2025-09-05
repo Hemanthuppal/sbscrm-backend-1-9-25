@@ -81,47 +81,114 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
 
 
 // POST: add lead product
+// router.post("/add-lead-product", (req, res) => {
+//   const {
+//     lead_id,
+//     unit,
+//     pr_no,
+//     pr_date,
+//     legacy_code,
+//     item_code,
+//     item_description,
+//     uom,
+//     pr_quantity
+//   } = req.body;
+
+//   const sql = `
+//     INSERT INTO emailproducts 
+//     (lead_id, unit, pr_no, pr_date, legacy_code, item_code, item_description, uom, pr_quantity)
+//     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+//   `;
+
+//   db.query(
+//     sql,
+//     [
+//       lead_id,
+//       unit,
+//       pr_no,
+//       pr_date,
+//       legacy_code,
+//       item_code,
+//       item_description,
+//       uom,
+//       pr_quantity
+//     ],
+//     (err, result) => {
+//       if (err) {
+//         console.error("Error inserting product:", err);
+//         return res.status(500).json({ error: "Failed to add product" });
+//       }
+//       res.json({ message: "Product added successfully", id: result.insertId });
+//     }
+//   );
+// });
+
 router.post("/add-lead-product", (req, res) => {
-  const {
-    lead_id,
-    unit,
-    pr_no,
-    pr_date,
-    legacy_code,
-    item_code,
-    item_description,
-    uom,
-    pr_quantity
-  } = req.body;
+  try {
+    console.log("Received product data:", req.body);
 
-  const sql = `
-    INSERT INTO emailproducts 
-    (lead_id, unit, pr_no, pr_date, legacy_code, item_code, item_description, uom, pr_quantity)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+    const { lead_id } = req.body;
+    // Extract product details from the "0" key
+    const product = req.body["0"];
 
-  db.query(
-    sql,
-    [
-      lead_id,
-      unit,
-      pr_no,
-      pr_date,
-      legacy_code,
-      item_code,
-      item_description,
-      uom,
-      pr_quantity
-    ],
-    (err, result) => {
-      if (err) {
-        console.error("Error inserting product:", err);
-        return res.status(500).json({ error: "Failed to add product" });
-      }
-      res.json({ message: "Product added successfully", id: result.insertId });
+    if (!product || !lead_id) {
+      return res.status(400).json({ error: "Missing product or lead_id" });
     }
-  );
+
+    const {
+      product_id,       // maps to email_product_id
+      product_name,
+      batch,
+      description,
+      size,
+      hsncode,
+      gstrate,
+      listprice,
+      moq,
+      maincategory_name,
+      subcategory_name
+    } = product;
+
+    const sql = `
+      INSERT INTO matched_products 
+      (lead_id, email_product_id, maincategory_name, subcategory_name, product_name, batch, description, size, hsncode, gstrate, listprice, moq, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    `;
+
+    db.query(
+      sql,
+      [
+        lead_id,
+        product_id || null,
+        maincategory_name || null,
+        subcategory_name || null,
+        product_name || null,
+        batch || null,
+        description || null,
+        size || null,
+        hsncode || null,
+        gstrate || null,
+        listprice || null,
+        moq || null
+      ],
+      (err, result) => {
+        if (err) {
+          console.error("Error inserting matched product:", err);
+          return res.status(500).json({ error: "Failed to add matched product" });
+        }
+        res.json({
+          message: "Matched product added successfully",
+          id: result.insertId
+        });
+      }
+    );
+  } catch (error) {
+    console.error("Server error:", error);
+    res.status(500).json({ error: "Unexpected server error" });
+  }
 });
+
+
 
 // GET /quotations - fetch all quotations
 router.get("/quotations", async (req, res) => {
