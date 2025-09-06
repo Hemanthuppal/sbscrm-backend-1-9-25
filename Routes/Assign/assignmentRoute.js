@@ -63,10 +63,16 @@ router.put('/leadcrm/:leadId/assign-user', async (req, res) => {
       return res.status(404).json({ message: 'Employee not found' });
     }
 
-    // Update assignment
+    // Update assignment in emailleads
     await db.query(
       'UPDATE emailleads SET assigned_by = ?, assigned_to = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?',
       [assigned_by, assigned_to, leadId]
+    );
+
+    // Insert into assignment_history
+    await db.query(
+      'INSERT INTO assignment_history (lead_id, assigned_by, assigned_to, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+      [leadId, assigned_by, assigned_to]
     );
 
     // Fetch updated assignment
@@ -102,7 +108,7 @@ router.put('/leadcrm/:leadId/assign-user', async (req, res) => {
     };
 
     res.json({
-      message: 'Assignment updated successfully',
+      message: 'Assignment updated successfully and history recorded',
       data,
     });
   } catch (err) {
@@ -110,6 +116,7 @@ router.put('/leadcrm/:leadId/assign-user', async (req, res) => {
     res.status(500).json({ message: 'Database error' });
   }
 });
+
 
 
 
