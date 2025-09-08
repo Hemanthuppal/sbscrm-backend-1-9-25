@@ -1,15 +1,11 @@
 const prompt = {
   role: "user",
   content: `
-ANALYZE THIS RAW EMAIL CONTENT AND EXTRACT CONTACT AND PRODUCT INFORMATION IN JSON FORMAT:
+ANALYZE RAW EMAIL CONTENT AND EXTRACT CONTACT AND PRODUCT INFORMATION IN JSON FORMAT:
 
-Return a valid JSON object with contact and product details extracted from the raw email content, including headers, forwarded sections, HTML, and multi-part MIME structures, without any preprocessing. Handle cases with minimal or common details (e.g., product name, brand, quantity) that may match multiple database products, lacking unique identifiers (e.g., model number, HSN code).
+Return a valid JSON object with contact and product details extracted from the provided raw email content, including headers, forwarded sections, HTML, and multi-part MIME structures, without any preprocessing. Handle cases with minimal or common details (e.g., product name, brand, quantity) that may match multiple database products, lacking unique identifiers (e.g., model number, HSN code).
 
-EMAIL DETAILS:
-- Subject: \${subject || "No Subject"}
-- From: \${fromName || "Unknown"} <\${fromEmail || "unknown@example.com"}>
-
-Output format:
+**Output Format**:
 {
   "name": "<Name or null>",
   "email": "<Email or null>",
@@ -40,9 +36,9 @@ Output format:
 **Instructions**:
 - **Email Content Analysis**:
   - Process the raw email content, including headers (e.g., "From:", "Date:"), forwarded sections (e.g., "---------- Forwarded message ---------"), HTML tags, and multi-part MIME structures (e.g., "Content-Type: text/plain").
-  - Ignore MIME headers (e.g., "--00000000000089a93d063d795e0e") and focus on email body, headers, and forwarded sections.
-  - Prioritize contact details (name, email, mobile) from the innermost forwarded section's sender (e.g., "From: Roza Sheikh <sbsroza1@gmail.com>", "ROZA SHEIKH - PH: 7879985320") or email body.
-  - Use top-level sender (\${fromName}, \${fromEmail}) only if no valid contact info is found in forwarded sections or body.
+  - Ignore MIME boundary headers (e.g., "--00000000000089a93d063d795e0e") and focus on email body, headers, and forwarded sections.
+  - Prioritize contact details (name, email, mobile) from the innermost forwarded section's sender (e.g., "From: Sharvani <sharvanikokkonda@gmail.com>", "ROZA SHEIKH - PH: 7879985320") or email body.
+  - If no valid contact info is found in forwarded sections or body, extract from top-level headers (e.g., "From: John Doe <john.doe@example.com>").
   - Extract contact info from signatures, body, or headers. Look for patterns like "Name:", "PH:", "E MAIL:", or phone numbers (e.g., "7879985320", "+91-7879985320", "PH - 7879985320").
 
 - **Product Details Extraction**:
@@ -69,7 +65,7 @@ Output format:
     - **manufacturer**: Extract "MANUFACTURER", "Brand", or brand name (e.g., "GROZ", "BOSCH") from description or body. If not found, set to null.
     - **additional_specs**: Capture extra specs (e.g., "HEAD:52 HRC,INDESTRUCTIBLE HANDLE") excluding size, manufacturer, item_code. If not found, set to null.
     - **is_ambiguous**: Set to true if details are minimal (e.g., only product name, brand, quantity) and likely to match multiple products (e.g., no model number, HSN code, or specific size). Set to false if a unique identifier (e.g., "MODEL NUMBER:BPID/20/14") is present.
-  - If no products, return empty array.
+  - If no products are found, return an empty array for "products".
   - Check subject for product details (e.g., "RFQ-5000387076_HAMMER,BL PN,565GMS").
 
 - **Handling Ambiguous Cases**:
@@ -88,15 +84,13 @@ Output format:
 
 - **Additional Rules**:
   - Set **is_contact_inquiry** to true if email contains RFQ, BOQ, product specs, PR No, Quantity, or machine tools terms (e.g., "HAMMER", "GROZ", "Qty-12 Nos"). Set to false for spam (e.g., "newsletter").
-  - If "products" array has items or RFQ keywords, set **is_contact_inquiry** to true and **confidence** to at least 0.7.
+  - If "products" array has items or RFQ keywords are present, set **is_contact_inquiry** to true and **confidence** to at least 0.7.
   - **Confidence**: 0.9-0.95 for detailed RFQs with unique identifiers, 0.7-0.8 for minimal or ambiguous data, <0.5 for ambiguous/spam.
-  - Return valid JSON, prioritizing innermost forwarded section or email body.
+  - Return valid JSON, prioritizing innermost forwarded section or email body for contact and product details.
   - Preserve special characters in descriptions.
   - Handle malformed or incomplete content gracefully, setting fields to null if not found.
-
-Raw email content:
-\${emailContent || "No content"}
-  `,
+  - Process the actual raw email content provided dynamically, extracting all relevant details without relying on predefined placeholders.
+  `
 };
 
 module.exports = prompt;

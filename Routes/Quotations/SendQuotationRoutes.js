@@ -55,6 +55,7 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
         user: "iiiqbetsvarnaaz@gmail.com",
         pass: "rbdy vard mzit ybse", // Gmail App Password
       },
+        tls: { rejectUnauthorized: false },
     });
 
     await transporter.sendMail({
