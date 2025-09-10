@@ -78,117 +78,127 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
   }
 });
 
-
-
-
-// POST: add lead product
-// router.post("/add-lead-product", (req, res) => {
-//   const {
-//     lead_id,
-//     unit,
-//     pr_no,
-//     pr_date,
-//     legacy_code,
-//     item_code,
-//     item_description,
-//     uom,
-//     pr_quantity
-//   } = req.body;
-
-//   const sql = `
-//     INSERT INTO emailproducts 
-//     (lead_id, unit, pr_no, pr_date, legacy_code, item_code, item_description, uom, pr_quantity)
-//     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-//   `;
-
-//   db.query(
-//     sql,
-//     [
-//       lead_id,
-//       unit,
-//       pr_no,
-//       pr_date,
-//       legacy_code,
-//       item_code,
-//       item_description,
-//       uom,
-//       pr_quantity
-//     ],
-//     (err, result) => {
-//       if (err) {
-//         console.error("Error inserting product:", err);
-//         return res.status(500).json({ error: "Failed to add product" });
-//       }
-//       res.json({ message: "Product added successfully", id: result.insertId });
-//     }
-//   );
-// });
-
-router.post("/add-lead-product", (req, res) => {
+router.post("/add-lead-product", async (req, res) => {
   try {
-    console.log("Received product data:", req.body);
+    console.log("📩 Received product data:", req.body);
 
     const { lead_id } = req.body;
-    // Extract product details from the "0" key
-    const product = req.body["0"];
-
-    if (!product || !lead_id) {
-      return res.status(400).json({ error: "Missing product or lead_id" });
+    if (!lead_id) {
+      return res.status(400).json({ error: "Missing lead_id" });
     }
 
-    const {
-      product_id,       // maps to email_product_id
-      product_name,
-      batch,
-      description,
-      size,
-      hsncode,
-      gstrate,
-      listprice,
-      moq,
-      maincategory_name,
-      subcategory_name
-    } = product;
+    // Convert numeric keys into an array of products
+    const products = Object.keys(req.body)
+      .filter((key) => !isNaN(key)) // only numeric keys
+      .map((key) => req.body[key]);
 
-    const sql = `
-      INSERT INTO matched_products 
-      (lead_id, email_product_id, maincategory_name, subcategory_name, product_name, batch, description, size, hsncode, gstrate, listprice, moq, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `;
+    if (products.length === 0) {
+      return res.status(400).json({ error: "No products provided" });
+    }
 
-    db.query(
-      sql,
-      [
-        lead_id,
-        product_id || null,
-        maincategory_name || null,
-        subcategory_name || null,
-        product_name || null,
-        batch || null,
-        description || null,
-        size || null,
-        hsncode || null,
-        gstrate || null,
-        listprice || null,
-        moq || null
-      ],
-      (err, result) => {
-        if (err) {
-          console.error("Error inserting matched product:", err);
-          return res.status(500).json({ error: "Failed to add matched product" });
-        }
-        res.json({
-          message: "Matched product added successfully",
-          id: result.insertId
-        });
+    for (const product of products) {
+      const {
+        detail_id,
+        product_id,
+        maincategory_id,
+        subcategory_id,
+        maincategory_name,
+        subcategory_name,
+        product_name,
+        batch,
+        description,
+        size,
+        hsncode,
+        gstrate,
+        listprice,
+        moq,
+        quantity = 1,
+      } = product;
+
+      // 🔍 Check if product already exists
+      const [rows] = await db.query(
+        `SELECT id, quantity FROM matched_products WHERE lead_id = ? AND detail_id = ?`,
+        [lead_id, detail_id]
+      );
+
+      if (rows.length > 0) {
+        // ✅ Exists → update quantity
+        const existing = rows[0];
+        const newQuantity = existing.quantity + quantity;
+
+        await db.query(
+          `UPDATE matched_products SET quantity = ? WHERE id = ?`,
+          [newQuantity, existing.id]
+        );
+
+        console.log(
+          `🔄 Updated product [lead_id=${lead_id}, detail_id=${detail_id}] → new qty=${newQuantity}`
+        );
+      } else {
+        // ➕ Insert new row
+        await db.query(
+          `INSERT INTO matched_products (
+            lead_id, detail_id, email_product_id,
+            maincategory_id, subcategory_id, maincategory_name, subcategory_name,
+            product_id, product_name, batch, description, size,
+            hsncode, gstrate, listprice, moq, quantity, created_at
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            lead_id,
+            detail_id || null,
+            product_id || null,
+            maincategory_id || null,
+            subcategory_id || null,
+            maincategory_name || null,
+            subcategory_name || null,
+            product_id || null,
+            product_name || null,
+            batch || null,
+            description || null,
+            size || null,
+            hsncode || null,
+            gstrate || null,
+            listprice || null,
+            moq || null,
+            quantity,
+            new Date(),
+          ]
+        );
+
+        console.log(
+          `✅ Inserted new product [lead_id=${lead_id}, detail_id=${detail_id}, qty=${quantity}]`
+        );
       }
-    );
+    }
+
+    res.json({ message: "Products processed successfully" });
   } catch (error) {
-    console.error("Server error:", error);
+    console.error("❌ Server error:", error);
     res.status(500).json({ error: "Unexpected server error" });
   }
 });
 
+
+
+
+// DELETE product by ID
+router.delete("/delete-lead-product/:id", (req, res) => {
+  const { id } = req.params;
+
+  const sql = "DELETE FROM matched_products WHERE id = ?";
+  db.query(sql, [id], (err, result) => {
+    if (err) {
+      console.error("Error deleting product:", err);
+      return res.status(500).json({ error: "Failed to delete product" });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.json({ message: "Product deleted successfully" });
+  });
+});
 
 
 // GET /quotations - fetch all quotations
