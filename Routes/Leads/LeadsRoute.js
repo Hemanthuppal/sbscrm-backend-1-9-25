@@ -7,7 +7,8 @@ const db = require('./../../Config/db');
 router.get("/contacts", async (req, res) => {
   try {
     const [results] = await db.query(`
-      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at,
+      l.status
       FROM emailleads l  ORDER BY l.created_at DESC
     `);
 
@@ -40,6 +41,91 @@ router.get("/contacts", async (req, res) => {
     console.error("Error fetching contacts:", err);
     res.status(500).json({ error: "Database error" });
   }
+}); 
+
+// API 1: Fetch contacts with status = 'New'
+router.get("/contacts/new", async (req, res) => {
+  try {
+    const [results] = await db.query(`
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at,
+      l.status
+      FROM emailleads l  
+      WHERE l.status != 'Qualified'
+      ORDER BY l.created_at DESC
+    `);
+
+    if (results.length === 0) {
+      return res.json([]);
+    }
+
+    const contactIds = results.map(contact => contact.id);
+
+    const [productResults] = await db.query(`
+      SELECT p.lead_id, p.unit, p.pr_no, p.pr_date, p.legacy_code, p.item_code, p.item_description, p.uom, p.pr_quantity
+      FROM emailproducts p
+      WHERE p.lead_id IN (?)
+    `, [contactIds]);
+
+    const productsByLeadId = productResults.reduce((acc, product) => {
+      if (!acc[product.lead_id]) {
+        acc[product.lead_id] = [];
+      }
+      acc[product.lead_id].push(product);
+      return acc;
+    }, {});
+
+    results.forEach(contact => {
+      contact.products = productsByLeadId[contact.id] || [];
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching contacts (New):", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+
+// API 2: Fetch contacts with status = 'Qualified'
+router.get("/contacts/qualified", async (req, res) => {
+  try {
+    const [results] = await db.query(`
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at,
+      l.status
+      FROM emailleads l  
+      WHERE l.status = 'Qualified'
+      ORDER BY l.created_at DESC
+    `);
+
+    if (results.length === 0) {
+      return res.json([]);
+    }
+
+    const contactIds = results.map(contact => contact.id);
+
+    const [productResults] = await db.query(`
+      SELECT p.lead_id, p.unit, p.pr_no, p.pr_date, p.legacy_code, p.item_code, p.item_description, p.uom, p.pr_quantity
+      FROM emailproducts p
+      WHERE p.lead_id IN (?)
+    `, [contactIds]);
+
+    const productsByLeadId = productResults.reduce((acc, product) => {
+      if (!acc[product.lead_id]) {
+        acc[product.lead_id] = [];
+      }
+      acc[product.lead_id].push(product);
+      return acc;
+    }, {});
+
+    results.forEach(contact => {
+      contact.products = productsByLeadId[contact.id] || [];
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching contacts (Qualified):", err);
+    res.status(500).json({ error: "Database error" });
+  }
 });
 
 
@@ -53,7 +139,8 @@ router.get('/contacts/:userid', async (req, res) => {
     }
 
     const [results] = await db.query(`
-      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at, l.assigned_by, l.assigned_to
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at, l.assigned_by, l.assigned_to,
+      l.status
       FROM emailleads l
       LEFT JOIN employees e ON l.assigned_to = e.id
       WHERE l.assigned_to = ? OR e.managerId = ?
@@ -87,6 +174,145 @@ router.get('/contacts/:userid', async (req, res) => {
   } catch (err) {
     console.error('Error fetching contacts:', err);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+router.get('/contacts/new/:userid', async (req, res) => {
+  try {
+    const { userid } = req.params;
+
+    if (!userid || isNaN(userid)) {
+      return res.status(400).json({ message: 'Invalid userId' });
+    }
+
+    const [results] = await db.query(`
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, 
+             l.created_at, l.assigned_by, l.assigned_to, l.status
+      FROM emailleads l
+      LEFT JOIN employees e ON l.assigned_to = e.id
+      WHERE (l.assigned_to = ? OR e.managerId = ?)
+      AND l.status != 'Qualified'
+      ORDER BY l.created_at DESC
+    `, [userid, userid]);
+
+    if (results.length === 0) {
+      return res.json([]);
+    }
+
+    const contactIds = results.map(contact => contact.id);
+
+    const [productResults] = await db.query(`
+      SELECT p.lead_id, p.unit, p.pr_no, p.pr_date, p.legacy_code, p.item_code, 
+             p.item_description, p.uom, p.pr_quantity
+      FROM emailproducts p
+      WHERE p.lead_id IN (?)
+    `, [contactIds]);
+
+    const productsByLeadId = productResults.reduce((acc, product) => {
+      if (!acc[product.lead_id]) {
+        acc[product.lead_id] = [];
+      }
+      acc[product.lead_id].push(product);
+      return acc;
+    }, {});
+
+    results.forEach(contact => {
+      contact.products = productsByLeadId[contact.id] || [];
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching contacts (New):', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+
+router.get('/contacts/qualified/:userid', async (req, res) => {
+  try {
+    const { userid } = req.params;
+
+    if (!userid || isNaN(userid)) {
+      return res.status(400).json({ message: 'Invalid userId' });
+    }
+
+    const [results] = await db.query(`
+      SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, 
+             l.created_at, l.assigned_by, l.assigned_to, l.status
+      FROM emailleads l
+      LEFT JOIN employees e ON l.assigned_to = e.id
+      WHERE (l.assigned_to = ? OR e.managerId = ?)
+      AND l.status = 'Qualified'
+      ORDER BY l.created_at DESC
+    `, [userid, userid]);
+
+    if (results.length === 0) {
+      return res.json([]);
+    }
+
+    const contactIds = results.map(contact => contact.id);
+
+    const [productResults] = await db.query(`
+      SELECT p.lead_id, p.unit, p.pr_no, p.pr_date, p.legacy_code, p.item_code, 
+             p.item_description, p.uom, p.pr_quantity
+      FROM emailproducts p
+      WHERE p.lead_id IN (?)
+    `, [contactIds]);
+
+    const productsByLeadId = productResults.reduce((acc, product) => {
+      if (!acc[product.lead_id]) {
+        acc[product.lead_id] = [];
+      }
+      acc[product.lead_id].push(product);
+      return acc;
+    }, {});
+
+    results.forEach(contact => {
+      contact.products = productsByLeadId[contact.id] || [];
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching contacts (Qualified):', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+
+router.put('/contacts/:leadId/status', async (req, res) => {
+  const { leadId } = req.params;
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ message: 'status is required' });
+  }
+
+  try {
+    // Validate lead exists
+    const [leadExists] = await db.query('SELECT id FROM emailleads WHERE id = ?', [leadId]);
+    if (leadExists.length === 0) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    // Validate status value
+    const validStatuses = ['New', 'Qualified', 'Not Qualified', 'Loss'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    // Update only the lead status
+    const updateQuery = 'UPDATE emailleads SET status = ? WHERE id = ?';
+    
+    await db.query(updateQuery, [status, leadId]);
+
+    res.json({
+      message: 'Status updated successfully',
+      data: { id: leadId, status: status }
+    });
+
+  } catch (error) {
+    console.error('Error updating status:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
