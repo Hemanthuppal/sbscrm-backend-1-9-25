@@ -27,11 +27,11 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
 
     const pdfBuffer = req.file.buffer;
 
-    // 1️⃣ Save quotation in DB
+    // 1️⃣ Save quotation in DB with sent_status = 1
     const query = `
       INSERT INTO quotations 
-        (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+        (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
     `;
 
     await db.query(query, [
@@ -44,7 +44,7 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       products, // ✅ already stringified JSON
     ]);
 
-    console.log("Quotation stored in DB successfully");
+    console.log("Quotation stored in DB successfully with sent_status = 1");
 
     // 2️⃣ Send email with PDF
     const transporter = nodemailer.createTransport({
@@ -55,7 +55,7 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
         user: "iiiqbetsvarnaaz@gmail.com",
         pass: "rbdy vard mzit ybse", // Gmail App Password
       },
-        tls: { rejectUnauthorized: false },
+      tls: { rejectUnauthorized: false },
     });
 
     await transporter.sendMail({
@@ -71,12 +71,13 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       ],
     });
 
-    res.json({ success: true, message: "Quotation saved & sent successfully" });
+    res.json({ success: true, message: "Quotation saved, marked as sent & emailed successfully" });
   } catch (err) {
     console.error("Error in send-quotation:", err);
     res.status(500).json({ success: false, error: "Failed to save/send quotation" });
   }
 });
+
 
 router.post("/add-lead-product", async (req, res) => {
   try {
@@ -228,6 +229,57 @@ router.get("/quotations/:lead_id", async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to fetch quotations" });
   }
 });
+
+
+// API to generate unique quotation number
+router.get("/get-next-quotation-number", async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT quotation_number FROM quotations ORDER BY id DESC LIMIT 1"
+    );
+
+    let nextNumber = 1;
+    if (rows.length > 0) {
+      // Extract numeric part from e.g. "QUO0005"
+      const lastQuotation = rows[0].quotation_number;
+      const numericPart = parseInt(lastQuotation.replace("QUO", ""), 10);
+      nextNumber = numericPart + 1;
+    }
+
+    // 👇 Pad to 4 digits instead of 3
+    const quotationNumber = `QUO${nextNumber.toString().padStart(4, "0")}`;
+
+    res.json({ quotationNumber });
+  } catch (err) {
+    console.error("Error fetching quotation number:", err);
+    res.status(500).json({ error: "Failed to generate quotation number" });
+  }
+});
+
+router.get("/quotation-status/:leadId", async (req, res) => {
+  try {
+    const { leadId } = req.params;
+
+    const [rows] = await db.query(
+      "SELECT quotation_number, sent_status FROM quotations WHERE lead_id = ? ORDER BY id DESC LIMIT 1",
+      [leadId]
+    );
+
+    if (rows.length > 0) {
+      res.json({ 
+        sent: rows[0].sent_status === 1, 
+        quotationNumber: rows[0].quotation_number 
+      });
+    } else {
+      res.json({ sent: false, quotationNumber: null });
+    }
+  } catch (err) {
+    console.error("Error checking quotation status:", err);
+    res.status(500).json({ error: "Failed to fetch quotation status" });
+  }
+});
+
+
 
 
 module.exports = router;
