@@ -91,7 +91,7 @@ router.get("/contacts/qualified", async (req, res) => {
   try {
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at,
-      l.status
+      l.status, l.opp_status
       FROM emailleads l  
       WHERE l.status = 'Qualified'
       ORDER BY l.created_at DESC
@@ -238,7 +238,7 @@ router.get('/contacts/qualified/:userid', async (req, res) => {
 
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, 
-             l.created_at, l.assigned_by, l.assigned_to, l.status
+             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status
       FROM emailleads l
       LEFT JOIN employees e ON l.assigned_to = e.id
       WHERE (l.assigned_to = ? OR e.managerId = ?)
@@ -315,6 +315,51 @@ router.put('/contacts/:leadId/status', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Update Opportunity Status
+router.put('/contacts/:leadId/opp-status', async (req, res) => {
+  const { leadId } = req.params;
+  const { opp_status } = req.body;
+
+  if (!opp_status) {
+    return res.status(400).json({ message: 'opp_status is required' });
+  }
+
+  try {
+    // Validate lead exists
+    const [leadExists] = await db.query('SELECT id FROM emailleads WHERE id = ?', [leadId]);
+    if (leadExists.length === 0) {
+      return res.status(404).json({ message: 'Lead not found' });
+    }
+
+    // Valid Opportunity Status values
+    const validOppStatuses = [
+      'Prospecting',
+      'Proposal Sent',
+      'Negotiation',
+      'Closed Won',
+      'Closed Lost',
+      'On Hold'
+    ];
+
+    if (!validOppStatuses.includes(opp_status)) {
+      return res.status(400).json({ message: 'Invalid opportunity status value' });
+    }
+
+    // Update opp_status
+    const updateQuery = 'UPDATE emailleads SET opp_status = ? WHERE id = ?';
+    await db.query(updateQuery, [opp_status, leadId]);
+
+    res.json({
+      message: 'Opportunity status updated successfully',
+      data: { id: leadId, opp_status }
+    });
+  } catch (error) {
+    console.error('Error updating opportunity status:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 
 router.get("/viewcontacts/:id", (req, res) => {
