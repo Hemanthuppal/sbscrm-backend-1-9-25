@@ -363,5 +363,37 @@ router.get("/all-email-products/:leadId", async (req, res) => {
 
 
 
+// Update quantity API
+router.post("/update-quantity", async (req, res) => {
+  try {
+    const { product_id, quantity } = req.body;
+
+    if (!product_id || !quantity) {
+      return res.status(400).json({ message: "product_id and quantity are required" });
+    }
+
+    // Update the matched_products table
+    const query = "UPDATE matched_products SET quantity = ? WHERE id = ?";
+    db.query(query, [quantity, product_id], (err, result) => {
+      if (err) {
+        console.error("Error updating quantity:", err);
+        return res.status(500).json({ message: "Database error" });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      res.json({ message: "Quantity updated successfully" });
+    });
+  } catch (error) {
+    console.error("Server error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+
+
 
 module.exports = router;
