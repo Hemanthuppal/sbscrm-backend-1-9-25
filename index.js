@@ -10,8 +10,11 @@ const QuotationRoutes = require('./Routes/Quotations/QuotationRoutes');
 const ProductRoutes = require('./Routes/Products/ProductRoutes')
 const Assignment = require('./Routes/Assign/assignmentRoute');
 const SendQuotationRoutes = require('./Routes/Quotations/SendQuotationRoutes');
+const APIRoutes = require('./Routes/AiApi/AiRoute');
 
-
+const db = require('./Config/db');
+const { fetchAndProcessEmails, testPort } = require('./EmailLeads/Eamilleads');
+const openRouterAI = require('./Aiprompt/Aiprompt');
 
 const Comment = require('./Routes/Comments/Comments');
 // const { fetchAndProcessEmails } = require('./EmailLeads/Eamilleads');
@@ -36,10 +39,21 @@ app.use('/api',SendQuotationRoutes);
 app.use('/api', Comment);
  
 
-// const POLL_MS = Number(process.env.IMAP_POLL_MS || 120000);
-// setInterval(fetchAndProcessEmails, POLL_MS);
-// console.log("Starting email processing with interval:", POLL_MS / 1000, "seconds");
-// fetchAndProcessEmails();
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+app.use('/api', APIRoutes);
+
+(async () => {
+    try {
+        await testPort('imap.gmail.com', 993);
+        console.log('TCP to imap.gmail.com:993 OK');
+    } catch (e) {
+        console.error('Cannot reach imap.gmail.com:993:', e.message);
+    }
+
+    const POLL_MS = Number(process.env.IMAP_POLL_MS || 120000);
+    setInterval(fetchAndProcessEmails, POLL_MS);
+    console.log('Starting AI-powered email fetcher with OpenRouter integration...');
+    console.log(`AI Confidence Threshold: ${openRouterAI.minConfidence}, Match Confidence Threshold: ${openRouterAI.matchConfidenceThreshold}`);
+    fetchAndProcessEmails();
+
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+})();
