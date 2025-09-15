@@ -161,7 +161,7 @@ app.post('/api/products', async (req, res) => {
 
   try {
     for (const productDetails of productDetailsArray) {
-      const { main_category, sub_category, selected_product, size, hsncode, listprice, gstrate,moq, batch } = productDetails;
+      const { main_category, sub_category, selected_product, size, hsncode, listprice, gstrate,moq, batch, Quantity } = productDetails;
 
       // Validate required fields
       if (!selected_product || !main_category || !sub_category || !size || !hsncode || !listprice || !moq || !batch) {
@@ -176,9 +176,9 @@ app.post('/api/products', async (req, res) => {
 
       // Insert product details into the database
       await db.query(`
-        INSERT INTO product_details (maincategory_id, subcategory_id, product_id, size, hsncode, gstrate, listprice, moq, batch)
+        INSERT INTO product_details (maincategory_id, subcategory_id, product_id, size, hsncode, gstrate, listprice, moq, batch, Quantity)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [main_category, sub_category, selected_product, size, hsncode,gstrate, listprice, moq, batch]);
+      `, [main_category, sub_category, selected_product, size, hsncode,gstrate, listprice, moq, batch, Quantity]);
     }
 
     res.status(201).json({ message: 'Products added successfully' });

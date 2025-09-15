@@ -308,6 +308,7 @@ router.get("/all-details", async (req, res) => {
           pd.description,
           pd.size,
           pd.hsncode,
+          pd.Quantity,
           pd.gstrate,
           pd.listprice,
           pd.moq,
