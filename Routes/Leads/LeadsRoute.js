@@ -337,6 +337,7 @@ router.put('/contacts/:leadId/opp-status', async (req, res) => {
       'Prospecting',
       'Proposal Sent',
       'Negotiation',
+      'Regret',
       'Closed Won',
       'Closed Lost',
       'On Hold'
