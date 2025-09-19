@@ -12,8 +12,8 @@ app.use(cors({ origin: "http://localhost:3000" }));
 // IMAP config (for fetching mails)
 const imapConfig = {
   imap: {
-    user: "sharvanikokkonda@gmail.com",   // your mailbox
-    password: "seca cwgz plub cptm",  // use app password
+    user: "",   // your mailbox
+    password: "",  // use app password
     host: "imap.gmail.com",         // Gmail
     port: 993,
     tls: true,
@@ -106,14 +106,14 @@ app.post("/send-reply", async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: "sharvanikokkonda@gmail.com",  // same account
-        pass: "seca cwgz plub cptm",
+        user: "",  // same account
+        pass: "",
       },
     });
 
     console.log("📧 Sending reply with PDF attachment...");
     await transporter.sendMail({
-      from: "sharvanikokkonda@gmail.com",
+      from: "",
       to: recipient,
       subject: "Re: Quotation Request",
       text: "Here is your quotation attached.",
