@@ -2,10 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
 
 const app = express();
 app.use(cors());
@@ -18,31 +14,6 @@ const db = mysql.createPool({
   password: '',
   database: 'sbs_crm_new'
 });
-
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = 'uploads/products';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-// Create upload middleware
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  }
-});
-
-
 
 // Get Main Categories
 app.get('/api/main-categories', async (req, res) => {
@@ -179,87 +150,91 @@ app.post('/api/sub-categories', async (req, res) => {
 //   }
 // });
 
-app.post('/api/products', upload.any(), async (req, res) => {
+app.post('/api/products', async (req, res) => {
+  const productDetailsArray = req.body;
+  console.log('Received product data array:', productDetailsArray);
+
+  // Validate if productDetailsArray is an array
+  if (!Array.isArray(productDetailsArray) || productDetailsArray.length === 0) {
+    return res.status(400).json({ error: 'No products provided' });
+  }
+
   try {
-    console.log("Request body keys:", Object.keys(req.body));
-    console.log("Files:", req.files);
+    for (const productDetails of productDetailsArray) {
+      const {
+        main_category, sub_category, selected_product, size, hsncode, gstrate, listprice, moq, batch, Quantity,
+        Model_No, Pit_No, Pit_Size, Rated_capacity, Length, Width, Structure,
+        Conveyor_Made_of, Type, Speed, Gear_Motor, VFD, Electric_Panel,
+        Safety_Sensors, Human_Sensor, Buzzer, Operation, Emergency, Wiring,
+        Over_Load_Protection, Panel, Bearings
+      } = productDetails;
 
-    // Count how many products were sent
-    const productCount = Object.keys(req.body)
-      .filter(key => key.startsWith('product_'))
-      .map(key => parseInt(key.split('_')[1]))
-      .reduce((max, idx) => Math.max(max, idx), -1) + 1;
-
-    console.log(`Found ${productCount} products`);
-
-    const products = [];
-    
-    // Extract each product
-    for (let i = 0; i < productCount; i++) {
-      const product = {
-        main_category: req.body[`product_${i}_main_category`],
-        sub_category: req.body[`product_${i}_sub_category`],
-        selected_product: req.body[`product_${i}_selected_product`],
-        size: req.body[`product_${i}_size`],
-        listprice: req.body[`product_${i}_listprice`],
-        moq: req.body[`product_${i}_moq`],
-        hsncode: req.body[`product_${i}_hsncode`],
-        Quantity: req.body[`product_${i}_Quantity`],
-        gstrate: req.body[`product_${i}_gstrate`],
-        batch: req.body[`product_${i}_batch`],
-        productImage: null,
-        techSpecs: null
-      };
-      
-      // Find associated files
-      if (req.files && req.files.length > 0) {
-        const productImageFile = req.files.find(f => 
-          f.fieldname === `product_${i}_productImage`
-        );
-        const techSpecsFile = req.files.find(f => 
-          f.fieldname === `product_${i}_techSpecs`
-        );
-        
-        if (productImageFile) product.productImage = productImageFile.filename;
-        if (techSpecsFile) product.techSpecs = techSpecsFile.filename;
-      }
-      
-      products.push(product);
-    }
-
-    console.log("Parsed products:", products);
-
-    if (products.length === 0) {
-      return res.status(400).json({ error: 'No products provided' });
-    }
-    // Insert into DB
-    for (const product of products) {
-      const { main_category, sub_category, selected_product, size, hsncode, gstrate, listprice, moq, batch, Quantity, productImage, techSpecs } = product;
-
+      // ✅ Required field validation (core fields only)
       if (!selected_product || !main_category || !sub_category || !size || !hsncode || !listprice || !moq || !batch) {
-        return res.status(400).json({ error: 'All required fields must be filled' });
+        return res.status(400).json({ error: 'All mandatory fields are required for each product' });
       }
 
-      const [productResult] = await db.query('SELECT * FROM product_name WHERE product_id = ?', [selected_product]);
+      // ✅ Check if product exists
+      const [productResult] = await db.query(
+        'SELECT * FROM product_name WHERE product_id = ?',
+        [selected_product]
+      );
       if (productResult.length === 0) {
         return res.status(404).json({ error: 'Product not found' });
       }
 
-      await db.query(`
-        INSERT INTO product_details 
-        (maincategory_id, subcategory_id, product_id, size, hsncode, gstrate, listprice, moq, batch, Quantity, product_image, tech_specs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [main_category, sub_category, selected_product, size, hsncode, gstrate, listprice, moq, batch, Quantity, productImage, techSpecs]);
+      // ✅ Insert into product_details with all new columns
+      await db.query(
+        `
+        INSERT INTO product_details (
+          maincategory_id, subcategory_id, product_id, size, hsncode, gstrate, listprice, moq, batch, Quantity,
+          Model_No, Pit_No, Pit_Size, Rated_capacity, Length, Width, Structure,
+          Conveyor_Made_of, Type, Speed, Gear_Motor, VFD, Electric_Panel,
+          Safety_Sensors, Human_Sensor, Buzzer, Operation, Emergency, Wiring,
+          Over_Load_Protection, Panel, Bearings
+        )
+        VALUES (?,?,?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?,?,?,
+                ?,?,?,?,?,?)
+        `,
+        [
+          main_category, sub_category, selected_product, size, hsncode, gstrate, listprice, moq, batch, Quantity,
+          Model_No, Pit_No, Pit_Size, Rated_capacity, Length, Width, Structure,
+          Conveyor_Made_of, Type, Speed, Gear_Motor, VFD, Electric_Panel,
+          Safety_Sensors, Human_Sensor, Buzzer, Operation, Emergency, Wiring,
+          Over_Load_Protection, Panel, Bearings
+        ]
+      );
     }
 
     res.status(201).json({ message: 'Products added successfully' });
-
   } catch (err) {
     console.error('Error adding products:', err.message);
     res.status(500).json({ error: 'Failed to add products', details: err.message });
   }
 });
 
+app.post("/api/specifications", (req, res) => {
+  const data = req.body; // frontend sends JSON with fields
+  const sql = "INSERT INTO specifications SET ?";
+  db.query(sql, data, (err, result) => {
+    if (err) return res.status(500).send(err);
+    res.send({ id: result.insertId, ...data });
+  });
+});
+
+
+app.get('/api/batches/:productName', async (req, res) => {
+  const productName = req.params.productName;
+  try {
+    const [results] = await db.query('SELECT * FROM product_details WHERE product_id = ?', [productName]);
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching products:', err.message);
+    res.status(500).json({ error: 'Failed to fetch products', details: err.message });
+  }
+});
 
 
 // Start the server

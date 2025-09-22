@@ -651,6 +651,79 @@ router.get('/leads/:id', async (req, res) => {
   }
 });
 
+router.get('/leads/:id/terms-conditions', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query('SELECT terms_conditions FROM emailleads WHERE id = ?', [id]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Lead not found' 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        terms_conditions: rows[0].terms_conditions
+      }
+    });
+    
+  } catch (err) {
+    console.error('GET /api/leads/:id/terms-conditions error:', err);
+    res.status(500).json({ 
+      success: false,
+      code: err.code, 
+      message: err.message 
+    });
+  }
+});
+
+// PUT API to update terms_conditions
+router.put('/leads/:id/terms-conditions', async (req, res) => {
+  const { id } = req.params;
+  const { terms_conditions } = req.body;
+  
+  try {
+    // Validate input
+    if (!terms_conditions || typeof terms_conditions !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid terms_conditions are required'
+      });
+    }
+
+    const [result] = await db.query(
+      'UPDATE emailleads SET terms_conditions = ? WHERE id = ?',
+      [terms_conditions, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Terms & conditions updated successfully',
+      data: {
+        terms_conditions
+      }
+    });
+    
+  } catch (err) {
+    console.error('PUT /api/leads/:id/terms-conditions error:', err);
+    res.status(500).json({ 
+      success: false,
+      code: err.code, 
+      message: err.message 
+    });
+  }
+});
+
 
 
 module.exports = router;
