@@ -279,6 +279,51 @@ router.get("/quotation-status/:leadId", async (req, res) => {
   }
 });
 
+// 📌 Update Quotation Status
+router.put("/update-quotation-status/:id", (req, res) => {
+  const { id } = req.params;
+  const { quotation_status } = req.body;
+
+  if (!quotation_status) {
+    return res.status(400).json({ error: "Quotation status is required" });
+  }
+
+  const sql = "UPDATE emailleads SET quotation_status = ? WHERE id = ?";
+  db.query(sql, [quotation_status, id], (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    res.json({ message: "Quotation status updated successfully", quotation_status });
+  });
+});
+
+// 📌 Get Quotation Status
+router.get("/lead-quotation-status/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await db.query(
+      "SELECT quotation_status FROM emailleads WHERE id = ?",
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("DB Error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+
+
+
 
 
 
