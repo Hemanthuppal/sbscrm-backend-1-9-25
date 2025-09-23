@@ -55,7 +55,7 @@ console.log(`Extracted Message ID: ${messageId}`);
         console.error('Error extracting email info:', error);
     }
 
-    return { fromEmail, fromName, subject };
+    return { fromEmail, fromName, subject ,messageId};
 }
 
 async function fetchAndProcessEmails() {
