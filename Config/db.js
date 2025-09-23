@@ -8,8 +8,7 @@ const pool = mysql.createPool({
   database: 'sbs_crm_new',
   waitForConnections: true,
   connectionLimit: 10,  
-  queueLimit: 0, 
-  port:4306      
+  queueLimit: 0,   
 });
 
 
