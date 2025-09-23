@@ -726,4 +726,50 @@ router.put('/leads/:id/terms-conditions', async (req, res) => {
 
 
 
+router.delete("/contacts/:leadId", async (req, res) => {
+  const { leadId } = req.params;
+
+  let connection;
+  try {
+    // Get a connection from the pool
+    connection = await db.getConnection();
+
+    // Begin transaction
+    await connection.beginTransaction();
+
+    // 1. Delete from emailproducts
+    await connection.query("DELETE FROM emailproducts WHERE lead_id = ?", [leadId]);
+
+    // 2. Delete from matched_products
+    await connection.query("DELETE FROM matched_products WHERE lead_id = ?", [leadId]);
+
+    // 3. Delete from emailleads
+    const [result] = await connection.query(
+      "DELETE FROM emailleads WHERE id = ?",
+      [leadId]
+    );
+
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    // Commit transaction
+    await connection.commit();
+    connection.release();
+
+    res.json({ message: "Lead and related data deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting lead:", error);
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
+    res.status(500).json({ message: "Failed to delete lead" });
+  }
+});
+
+
+
 module.exports = router;
