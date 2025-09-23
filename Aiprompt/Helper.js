@@ -64,13 +64,13 @@ async function fetchDatabaseProducts() {
     }
 }
 
-async function insertOrUpdateContact(data, callback) {
+async function insertOrUpdateContact(data,rawEmailContent,messageId, callback) {
     const nLead = normalizeLead(data);
-
+console.log('Normalized Lead Data:', nLead,messageId);
     const sqlLead = `
         INSERT INTO emailleads 
-            (lead_name, email, contact_number, lead_source, terms_conditions, created_at)
-        VALUES (?, ?, ?, ?, ?, NOW())
+            (lead_name, email, contact_number, lead_source, terms_conditions,raw_email_content,message_id, created_at)
+        VALUES (?, ?, ?, ?, ?,?,?, NOW())
     `;
 
     const paramsLead = [
@@ -78,7 +78,9 @@ async function insertOrUpdateContact(data, callback) {
         nLead.email,
         nLead.contact_number,
         nLead.lead_source,
-        nLead.terms_conditions
+        nLead.terms_conditions,
+        rawEmailContent ,
+        messageId       
     ];
 
     try {
