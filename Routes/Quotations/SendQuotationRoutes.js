@@ -22,12 +22,13 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       subtotal,
       gst,
       total_amount,
-      products, // ✅ received as JSON string
+      products, // JSON string
+      message_id, // ✅ received from frontend
     } = req.body;
 
     const pdfBuffer = req.file.buffer;
 
-    // 1️⃣ Save quotation in DB with sent_status = 1
+    // 1️⃣ Save quotation in DB
     const query = `
       INSERT INTO quotations 
         (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status) 
@@ -41,12 +42,12 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       subtotal,
       gst,
       total_amount,
-      products, // ✅ already stringified JSON
+      products,
     ]);
 
     console.log("Quotation stored in DB successfully with sent_status = 1");
 
-    // 2️⃣ Send email with PDF
+    // 2️⃣ Send email as REPLY
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
@@ -61,7 +62,7 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
     await transporter.sendMail({
       from: '"SBS Company" <iiiqbetsvarnaaz@gmail.com>',
       to: email,
-      subject: "Quotation from SBS Company",
+      subject: "Re: Quotation from SBS Company", // ✅ "Re:" to show reply
       text: `Dear ${name},\n\nPlease find attached your quotation.\n\nRegards,\nSBS Company`,
       attachments: [
         {
@@ -69,14 +70,19 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
           content: pdfBuffer,
         },
       ],
+      headers: {
+        "In-Reply-To": message_id,   // ✅ reply to original message
+        "References": message_id,    // ✅ keep thread intact
+      },
     });
 
-    res.json({ success: true, message: "Quotation saved, marked as sent & emailed successfully" });
+    res.json({ success: true, message: "Quotation saved, marked as sent & emailed as reply" });
   } catch (err) {
     console.error("Error in send-quotation:", err);
     res.status(500).json({ success: false, error: "Failed to save/send quotation" });
   }
 });
+
 
 
 router.post("/add-lead-product", async (req, res) => {
@@ -279,25 +285,35 @@ router.get("/quotation-status/:leadId", async (req, res) => {
   }
 });
 
-// 📌 Update Quotation Status
-router.put("/update-quotation-status/:id", (req, res) => {
-  const { id } = req.params;
-  const { quotation_status } = req.body;
+/// 📌 Update Quotation Status
+router.put("/update-quotation-status/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quotation_status } = req.body;
 
-  if (!quotation_status) {
-    return res.status(400).json({ error: "Quotation status is required" });
-  }
+    if (!quotation_status) {
+      return res.status(400).json({ error: "Quotation status is required" });
+    }
 
-  const sql = "UPDATE emailleads SET quotation_status = ? WHERE id = ?";
-  db.query(sql, [quotation_status, id], (err, result) => {
-    if (err) return res.status(500).json({ error: err });
+    const [result] = await db.query(
+      "UPDATE emailleads SET quotation_status = ? WHERE id = ?",
+      [quotation_status, id]
+    );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Lead not found" });
     }
 
-    res.json({ message: "Quotation status updated successfully", quotation_status });
-  });
+    // ✅ Send proper JSON
+    res.status(200).json({
+      message: "Quotation status updated successfully",
+      quotation_status,
+    });
+
+  } catch (err) {
+    console.error("DB Error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 📌 Get Quotation Status
@@ -314,15 +330,32 @@ router.get("/lead-quotation-status/:id", async (req, res) => {
       return res.status(404).json({ error: "Lead not found" });
     }
 
-    res.json(rows[0]);
+    res.status(200).json(rows[0]);
   } catch (err) {
     console.error("DB Error:", err);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
 
+// GET /api/raw-email/:id
+router.get("/raw-email/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    const query = "SELECT raw_email_content FROM emailleads WHERE id = ?";
+    const [rows] = await db.query(query, [id]);
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: "Email not found" });
+    }
+
+    res.json({ raw_email_content: rows[0].raw_email_content });
+  } catch (err) {
+    console.error("Error fetching raw email:", err);
+    res.status(500).json({ error: "Failed to fetch raw email" });
+  }
+});
 
 
 

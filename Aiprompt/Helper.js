@@ -14,8 +14,8 @@ function normalizeLead(data) {
         email: (data.email || 'unknown@example.com').toLowerCase().trim(),
         contact_number: normalizePhone(data.mobile),
         lead_source: data.source || 'Email',
-        terms_conditions: data.terms_conditions || null
-    };
+        // terms_conditions: data.terms_conditions  
+        };
 }
 
 function normalizeProduct(product) {
@@ -69,7 +69,7 @@ async function insertOrUpdateContact(data,rawEmailContent,messageId, callback) {
 console.log('Normalized Lead Data:', nLead,messageId);
     const sqlLead = `
         INSERT INTO emailleads 
-            (lead_name, email, contact_number, lead_source, terms_conditions,raw_email_content,message_id, created_at)
+            (lead_name, email, contact_number, lead_source,raw_email_content,message_id,status, created_at)
         VALUES (?, ?, ?, ?, ?,?,?, NOW())
     `;
 
@@ -78,9 +78,10 @@ console.log('Normalized Lead Data:', nLead,messageId);
         nLead.email,
         nLead.contact_number,
         nLead.lead_source,
-        nLead.terms_conditions,
+        // nLead.terms_conditions,
         rawEmailContent ,
-        messageId       
+        messageId,
+        "Qualified"       
     ];
 
     try {
