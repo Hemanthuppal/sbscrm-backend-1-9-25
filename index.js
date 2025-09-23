@@ -11,6 +11,7 @@ const ProductRoutes = require('./Routes/Products/ProductRoutes')
 const Assignment = require('./Routes/Assign/assignmentRoute');
 const SendQuotationRoutes = require('./Routes/Quotations/SendQuotationRoutes');
 const APIRoutes = require('./Routes/AiApi/AiRoute');
+const InventoryRoutes = require('./Routes/Inventory/InventoryRoutes');
 
 const db = require('./Config/db');
 const { fetchAndProcessEmails, testPort } = require('./EmailLeads/Eamilleads');
@@ -37,6 +38,7 @@ app.use('/api', ProductRoutes);
 app.use('/api', Assignment);
 app.use('/api',SendQuotationRoutes);
 app.use('/api', Comment);
+app.use('/api', InventoryRoutes);
  
 
 app.use('/api', APIRoutes);
