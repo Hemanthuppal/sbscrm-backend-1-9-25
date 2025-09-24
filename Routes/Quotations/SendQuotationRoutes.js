@@ -11,8 +11,16 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // POST /send-quotation
+// POST /send-quotation
+// POST /send-quotation
 router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
+  console.log("📩 Incoming /send-quotation request");
+
   try {
+    // Log raw body & file
+    console.log("📝 req.body:", req.body);
+    console.log("📎 req.file:", req.file ? req.file.originalname : "No file received");
+
     const {
       email,
       name,
@@ -23,8 +31,13 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       gst,
       total_amount,
       products, // JSON string
-      message_id, // ✅ received from frontend
+      message_id,
     } = req.body;
+
+    if (!req.file) {
+      console.error("❌ PDF file missing in request");
+      return res.status(400).json({ success: false, error: "PDF file is required" });
+    }
 
     const pdfBuffer = req.file.buffer;
 
@@ -34,6 +47,17 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
         (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status) 
       VALUES (?, ?, ?, ?, ?, ?, ?, 1)
     `;
+
+    console.log("💾 Saving quotation to DB...");
+    console.log("➡️ Values:", {
+      lead_id,
+      quotationNumber,
+      quotationDate,
+      subtotal,
+      gst,
+      total_amount,
+      products,
+    });
 
     await db.query(query, [
       lead_id,
@@ -45,24 +69,26 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       products,
     ]);
 
-    console.log("Quotation stored in DB successfully with sent_status = 1");
+    console.log("✅ Quotation stored in DB successfully with sent_status = 1");
 
     // 2️⃣ Send email as REPLY
+    console.log("📧 Preparing transporter...");
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
       secure: false,
       auth: {
-        user: "iiiqbetsvarnaaz@gmail.com",
-        pass: "rbdy vard mzit ybse", // Gmail App Password
+        user: "landnestiiiqbets@gmail.com",
+        pass: "ohzh apyb wvsm wkti", // Gmail App Password
       },
       tls: { rejectUnauthorized: false },
     });
 
+    console.log("📧 Sending email to:", email);
     await transporter.sendMail({
-      from: '"SBS Company" <iiiqbetsvarnaaz@gmail.com>',
+      from: '"SBS Company" <landnestiiiqbets@gmail.com>',
       to: email,
-      subject: "Re: Quotation from SBS Company", // ✅ "Re:" to show reply
+      subject: "Re: Quotation from SBS Company",
       text: `Dear ${name},\n\nPlease find attached your quotation.\n\nRegards,\nSBS Company`,
       attachments: [
         {
@@ -71,17 +97,28 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
         },
       ],
       headers: {
-        "In-Reply-To": message_id,   // ✅ reply to original message
-        "References": message_id,    // ✅ keep thread intact
+        "In-Reply-To": message_id,
+        "References": message_id,
       },
     });
 
-    res.json({ success: true, message: "Quotation saved, marked as sent & emailed as reply" });
+    console.log("✅ Email sent successfully");
+
+    res.json({
+      success: true,
+      message: "Quotation saved, marked as sent & emailed as reply",
+      quotationNumber,
+    });
   } catch (err) {
-    console.error("Error in send-quotation:", err);
-    res.status(500).json({ success: false, error: "Failed to save/send quotation" });
+    console.error("❌ Error in send-quotation:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to save/send quotation",
+    });
   }
 });
+
+
 
 
 
