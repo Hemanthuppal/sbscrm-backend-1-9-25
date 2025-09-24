@@ -312,7 +312,9 @@ router.get("/all-details", async (req, res) => {
           pd.gstrate,
           pd.listprice,
           pd.moq,
-          pd.created_at
+          pd.created_at,
+          pd.product_image,
+          pd.tech_specs
       FROM product_details pd
       LEFT JOIN main_category mc ON pd.maincategory_id = mc.maincategory_id
       LEFT JOIN sub_category sc ON pd.subcategory_id = sc.subcategory_id

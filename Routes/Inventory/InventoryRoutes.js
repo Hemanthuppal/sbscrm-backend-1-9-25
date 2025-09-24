@@ -28,7 +28,7 @@ const upload = multer({
 // ================== Routes ==================
 
 // 📌 Get Main Categories
-router.get("/main-categories", async (req, res) => {
+router.get("/main", async (req, res) => {
   try {
     const [results] = await db.query("SELECT * FROM main_category");
     res.json(results);
@@ -39,7 +39,7 @@ router.get("/main-categories", async (req, res) => {
 });
 
 // 📌 Get Sub Categories by Main Category ID
-router.get("/sub-categories/:mainCategoryId", async (req, res) => {
+router.get("/sub-categories-main/:mainCategoryId", async (req, res) => {
   const mainCategoryId = req.params.mainCategoryId;
   try {
     const [results] = await db.query(
@@ -54,7 +54,7 @@ router.get("/sub-categories/:mainCategoryId", async (req, res) => {
 });
 
 // 📌 Get Products by Subcategory ID
-router.get("/products/:subCategoryId", async (req, res) => {
+router.get("/products-main/:subCategoryId", async (req, res) => {
   const subCategoryId = req.params.subCategoryId;
   try {
     const [results] = await db.query(
@@ -69,7 +69,7 @@ router.get("/products/:subCategoryId", async (req, res) => {
 });
 
 // 📌 Add Main Category
-router.post("/main-categories", async (req, res) => {
+router.post("/main-categories-main", async (req, res) => {
   const { maincategory_name } = req.body;
   try {
     const [result] = await db.query(
@@ -87,7 +87,7 @@ router.post("/main-categories", async (req, res) => {
 });
 
 // 📌 Add Sub Category
-router.post("/sub-categories", async (req, res) => {
+router.post("/sub-categories-main", async (req, res) => {
   const { subcategory_name, maincategory_id } = req.body;
   try {
     const [result] = await db.query(
@@ -105,7 +105,7 @@ router.post("/sub-categories", async (req, res) => {
 });
 
 // 📌 Add Product Name
-router.post("/product-name", async (req, res) => {
+router.post("/product-name-main", async (req, res) => {
   const { product_name, subcategory_id } = req.body;
   if (!product_name || !subcategory_id) {
     return res
@@ -138,7 +138,7 @@ router.post("/product-name", async (req, res) => {
 });
 
 // 📌 Add Product with files
-router.post("/products", upload.any(), async (req, res) => {
+router.post("/products-main", upload.any(), async (req, res) => {
   try {
     const productCount =
       Object.keys(req.body)
