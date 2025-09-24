@@ -25,6 +25,7 @@ function getEmailInfo(parsed, header) {
     let fromEmail = 'unknown@example.com';
     let fromName = 'Unknown';
     let subject = 'No Subject';
+    let messageId = 'No Message ID';
 
     try {
         if (parsed.from?.value?.[0]) {
@@ -46,11 +47,15 @@ function getEmailInfo(parsed, header) {
 
         if (parsed.subject) subject = parsed.subject;
         else if (header?.subject) subject = Array.isArray(header.subject) ? header.subject[0] : header.subject;
+         if (header?.['message-id']) {
+            messageId = header['message-id'] || messageId;
+        }
+console.log(`Extracted Message ID: ${messageId}`); 
     } catch (error) {
         console.error('Error extracting email info:', error);
     }
 
-    return { fromEmail, fromName, subject };
+    return { fromEmail, fromName, subject ,messageId};
 }
 
 async function fetchAndProcessEmails() {
@@ -80,9 +85,9 @@ async function fetchAndProcessEmails() {
                 const text = message.parts.find((p) => p.which === 'TEXT')?.body;
 
                 const parsed = await simpleParser(text || message.parts.map(p => p.body || '').join('\n') || '');
-                const { fromEmail, fromName, subject } = getEmailInfo(parsed, header);
+                const { fromEmail, fromName, subject,messageId  } = getEmailInfo(parsed, header);
                 const emailBody = text || message.parts.map(p => p.body || '').join('\n') || '';
-
+const rawEmailContent = emailBody; 
                 console.log('\n=== Processing Email ===');
                 console.log(`From: ${fromName} <${fromEmail}>`);
                 console.log(`Subject: ${subject}`);
@@ -114,7 +119,7 @@ async function fetchAndProcessEmails() {
                     console.log('No matched products found for this email');
                 }
 
-                insertOrUpdateContact(extractedData, (err, result) => {
+                insertOrUpdateContact(extractedData,rawEmailContent,messageId, (err, result) => {
                     if (err) {
                         console.error('DB save error:', err);
                         return;

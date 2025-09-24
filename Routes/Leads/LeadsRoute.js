@@ -91,7 +91,7 @@ router.get("/contacts/qualified", async (req, res) => {
   try {
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at,
-      l.status, l.opp_status
+      l.status, l.opp_status,l.quotation_status,l.message_id
       FROM emailleads l  
       WHERE l.status = 'Qualified'
       ORDER BY l.created_at DESC
@@ -238,7 +238,7 @@ router.get('/contacts/qualified/:userid', async (req, res) => {
 
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, 
-             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status,l.quotation_status
+             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status,l.quotation_status,l.message_id
       FROM emailleads l
       LEFT JOIN employees e ON l.assigned_to = e.id
       WHERE (l.assigned_to = ? OR e.managerId = ?)
@@ -721,6 +721,52 @@ router.put('/leads/:id/terms-conditions', async (req, res) => {
       code: err.code, 
       message: err.message 
     });
+  }
+});
+
+
+
+router.delete("/contacts/:leadId", async (req, res) => {
+  const { leadId } = req.params;
+
+  let connection;
+  try {
+    // Get a connection from the pool
+    connection = await db.getConnection();
+
+    // Begin transaction
+    await connection.beginTransaction();
+
+    // 1. Delete from emailproducts
+    await connection.query("DELETE FROM emailproducts WHERE lead_id = ?", [leadId]);
+
+    // 2. Delete from matched_products
+    await connection.query("DELETE FROM matched_products WHERE lead_id = ?", [leadId]);
+
+    // 3. Delete from emailleads
+    const [result] = await connection.query(
+      "DELETE FROM emailleads WHERE id = ?",
+      [leadId]
+    );
+
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    // Commit transaction
+    await connection.commit();
+    connection.release();
+
+    res.json({ message: "Lead and related data deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting lead:", error);
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
+    res.status(500).json({ message: "Failed to delete lead" });
   }
 });
 

@@ -11,6 +11,7 @@ const pool = mysql.createPool({
   queueLimit: 0, 
   // port: 4306
     
+  queueLimit: 0,    
 });
 
 
