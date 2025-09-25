@@ -322,7 +322,7 @@ router.get("/quotation-status/:leadId", async (req, res) => {
   }
 });
 
-/// 📌 Update Quotation Status
+/// 📌 Update Quotation Status + Opportunity Status
 router.put("/update-quotation-status/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -332,19 +332,28 @@ router.put("/update-quotation-status/:id", async (req, res) => {
       return res.status(400).json({ error: "Quotation status is required" });
     }
 
-    const [result] = await db.query(
-      "UPDATE emailleads SET quotation_status = ? WHERE id = ?",
-      [quotation_status, id]
-    );
+    // Build query dynamically
+    let sql = "UPDATE emailleads SET quotation_status = ?";
+    const params = [quotation_status];
+
+    if (quotation_status === "Sent") {
+      sql += ", opp_status = ?";
+      params.push("Proposal Sent");
+    }
+
+    sql += " WHERE id = ?";
+    params.push(id);
+
+    const [result] = await db.query(sql, params);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Lead not found" });
     }
 
-    // ✅ Send proper JSON
     res.status(200).json({
       message: "Quotation status updated successfully",
       quotation_status,
+      ...(quotation_status === "Sent" && { opp_status: "Proposal Sent" }),
     });
 
   } catch (err) {
@@ -352,6 +361,7 @@ router.put("/update-quotation-status/:id", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // 📌 Get Quotation Status
 router.get("/lead-quotation-status/:id", async (req, res) => {
