@@ -78,15 +78,15 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
       port: 587,
       secure: false,
       auth: {
-        user: "landnestiiiqbets@gmail.com",
-        pass: "ohzh apyb wvsm wkti", // Gmail App Password
+        user: "amansbs@gmail.com",
+        pass: "svul hklq knvv huue", // Gmail App Password
       },
       tls: { rejectUnauthorized: false },
     });
 
     console.log("📧 Sending email to:", email);
     await transporter.sendMail({
-      from: '"SBS Company" <landnestiiiqbets@gmail.com>',
+      from: '"SBS Company" <amansbs@gmail.com>',
       to: email,
       subject: "Re: Quotation from SBS Company",
       text: `Dear ${name},\n\nPlease find attached your quotation.\n\nRegards,\nSBS Company`,
