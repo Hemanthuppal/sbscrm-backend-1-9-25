@@ -159,6 +159,7 @@ router.post("/products-main", upload.any(), async (req, res) => {
         hsncode: req.body[`product_${i}_hsncode`],
         Quantity: req.body[`product_${i}_Quantity`],
         gstrate: req.body[`product_${i}_gstrate`],
+        description: req.body[`product_${i}_description`],
         batch: req.body[`product_${i}_batch`],
         productImage: null,
         techSpecs: null,
@@ -191,6 +192,7 @@ router.post("/products-main", upload.any(), async (req, res) => {
         size,
         hsncode,
         gstrate,
+        description,
         listprice,
         moq,
         batch,
@@ -225,8 +227,8 @@ router.post("/products-main", upload.any(), async (req, res) => {
       await db.query(
         `
         INSERT INTO product_details 
-        (maincategory_id, subcategory_id, product_id, size, hsncode, gstrate, listprice, moq, batch, Quantity, product_image, tech_specs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (maincategory_id, subcategory_id, product_id, size, hsncode, gstrate, description, listprice, moq, batch, Quantity, product_image, tech_specs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
         [
           main_category,
@@ -235,6 +237,7 @@ router.post("/products-main", upload.any(), async (req, res) => {
           size,
           hsncode,
           gstrate,
+          description,
           listprice,
           moq,
           batch,

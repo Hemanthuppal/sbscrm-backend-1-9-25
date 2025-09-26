@@ -118,6 +118,78 @@ router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
   }
 });
 
+router.post('/send-budget-quotation', upload.single('quotation'), async (req, res) => {
+  console.log('📩 Request received at /api/send-budget-quotation');
+
+  try {
+    // Log raw body & file
+    console.log('📝 req.body:', req.body);
+    console.log('📎 req.file:', req.file ? req.file.originalname : 'No file received');
+
+    const { email, leadId, leadName } = req.body;
+    const file = req.file;
+
+    if (!email || !leadId || !file) {
+      console.error('❌ Missing required fields:', { email, leadId, file });
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    const fileBuffer = req.file.buffer;
+
+    // 1️⃣ Save quotation in DB
+    const query = `
+      INSERT INTO budget_quotations (lead_id, email, file_data, sent_status) 
+      VALUES (?, ?, ?, 1)
+    `;
+    console.log('💾 Saving quotation to DB...');
+    console.log('➡️ Values:', { leadId, email, fileName: file.originalname });
+
+    await db.query(query, [leadId, email, fileBuffer]);
+
+    console.log('✅ Quotation stored in DB successfully with sent_status = 1');
+
+    // 2️⃣ Send email
+    console.log('📧 Preparing transporter...');
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'landnestiiiqbets@gmail.com',
+        pass: 'ohzh apyb wvsm wkti', // Gmail App Password from reference
+      },
+      tls: { rejectUnauthorized: false },
+    });
+
+    console.log('📧 Sending email to:', email);
+    await transporter.sendMail({
+      from: '"SBS Company" <landnestiiiqbets@gmail.com>',
+      to: email,
+      subject: `Quotation for ${leadName}`,
+      text: `Dear ${leadName},\n\nPlease find the attached quotation.\n\nBest regards,\nYour Team`,
+      attachments: [
+        {
+          filename: file.originalname,
+          content: fileBuffer,
+        },
+      ],
+    });
+
+    console.log('✅ Email sent successfully');
+
+    res.json({
+      success: true,
+      message: 'Quotation sent successfully',
+    });
+  } catch (err) {
+    console.error('❌ Error in send-budget-quotation:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message || 'Failed to send quotation',
+    });
+  }
+});
+
 
 
 
