@@ -1,154 +1,138 @@
 // server.js or routes/quotation.js
 const express = require("express");
-const multer = require("multer");
+// const multer = require("multer");
 const nodemailer = require("nodemailer");
-const path = require("path");
+// const path = require("path");
+// const fs = require("fs"); 
 const db = require('./../../Config/db'); // <-- using shared DB connection
 const router = express.Router();
 
-// Multer config (store file in memory)
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
-// POST /send-quotation
-// POST /send-quotation
-// POST /send-quotation
-router.post("/send-quotation", upload.single("pdf"), async (req, res) => {
-  console.log("📩 Incoming /send-quotation request");
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '../../Uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-  try {
-    // Log raw body & file
-    console.log("📝 req.body:", req.body);
-    console.log("📎 req.file:", req.file ? req.file.originalname : "No file received");
-
-    const {
-      email,
-      name,
-      lead_id,
-      quotationNumber,
-      quotationDate,
-      subtotal,
-      gst,
-      total_amount,
-      products, // JSON string
-      message_id,
-    } = req.body;
-
-    if (!req.file) {
-      console.error("❌ PDF file missing in request");
-      return res.status(400).json({ success: false, error: "PDF file is required" });
-    }
-
-    const pdfBuffer = req.file.buffer;
-
-    // 1️⃣ Save quotation in DB
-    const query = `
-      INSERT INTO quotations 
-        (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    `;
-
-    console.log("💾 Saving quotation to DB...");
-    console.log("➡️ Values:", {
-      lead_id,
-      quotationNumber,
-      quotationDate,
-      subtotal,
-      gst,
-      total_amount,
-      products,
-    });
-
-    await db.query(query, [
-      lead_id,
-      quotationNumber,
-      quotationDate,
-      subtotal,
-      gst,
-      total_amount,
-      products,
-    ]);
-
-    console.log("✅ Quotation stored in DB successfully with sent_status = 1");
-
-    // 2️⃣ Send email as REPLY
-    console.log("📧 Preparing transporter...");
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: {
-        user: "amansbs@gmail.com",
-        pass: "svul hklq knvv huue", // Gmail App Password
-      },
-      tls: { rejectUnauthorized: false },
-    });
-
-    console.log("📧 Sending email to:", email);
-    await transporter.sendMail({
-      from: '"SBS Company" <amansbs@gmail.com>',
-      to: email,
-      subject: "Re: Quotation from SBS Company",
-      text: `Dear ${name},\n\nPlease find attached your quotation.\n\nRegards,\nSBS Company`,
-      attachments: [
-        {
-          filename: req.file.originalname,
-          content: pdfBuffer,
-        },
-      ],
-      headers: {
-        "In-Reply-To": message_id,
-        "References": message_id,
-      },
-    });
-
-    console.log("✅ Email sent successfully");
-
-    res.json({
-      success: true,
-      message: "Quotation saved, marked as sent & emailed as reply",
-      quotationNumber,
-    });
-  } catch (err) {
-    console.error("❌ Error in send-quotation:", err);
-    res.status(500).json({
-      success: false,
-      error: err.message || "Failed to save/send quotation",
-    });
+// Multer storage configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    // Create unique filename with timestamp
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const originalName = file.originalname.replace(/\s+/g, '_'); // Replace spaces with underscores
+    cb(null, uniqueSuffix + '_' + originalName);
   }
 });
 
+// File filter
+const fileFilter = (req, file, cb) => {
+  // Allow specific file types
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg',
+    'image/png',
+    'image/jpg'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only PDF, Word, Excel, JPG, PNG files are allowed.'), false);
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
+// POST /send-quotation
+// POST /send-quotation
+// POST /send-quotation
+// POST /api/send-budget-quotation - Fixed route
 router.post('/send-budget-quotation', upload.single('quotation'), async (req, res) => {
   console.log('📩 Request received at /api/send-budget-quotation');
 
   try {
-    // Log raw body & file
+    // Log raw body & file with full path details
     console.log('📝 req.body:', req.body);
-    console.log('📎 req.file:', req.file ? req.file.originalname : 'No file received');
+    console.log('📎 req.file:', req.file ? {
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path,
+      filename: req.file.filename,
+      destination: req.file.destination
+    } : 'No file received');
 
     const { email, leadId, leadName } = req.body;
     const file = req.file;
 
+    // Validation
     if (!email || !leadId || !file) {
-      console.error('❌ Missing required fields:', { email, leadId, file });
-      return res.status(400).json({ success: false, error: 'Missing required fields' });
+      console.error('❌ Missing required fields:', { email, leadId, file: !!file });
+      return res.status(400).json({ success: false, error: 'Missing required fields: email, leadId, and file are required' });
     }
 
-    const fileBuffer = req.file.buffer;
+    // ✅ FIXED: Use consistent path format
+    const filePath = file.path; // Full server path
+    const relativePath = `Uploads/${file.filename}`; // Database path (always use forward slashes)
+    
+    console.log('🔍 File path details:', {
+      actualPath: filePath,
+      relativePath: relativePath,
+      fileExists: fs.existsSync(filePath)
+    });
+
+    // Check if file actually exists
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ File not found at path:', filePath);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Uploaded file not found on server' 
+      });
+    }
+
+    // Verify file was written correctly
+    const stats = fs.statSync(filePath);
+    if (stats.size === 0) {
+      console.error('❌ File is empty:', filePath);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Uploaded file is empty' 
+      });
+    }
+
+    console.log('💾 Saving quotation to DB...');
+    console.log('➡️ Values:', { 
+      leadId, 
+      email, 
+      filePath: relativePath,
+      fileSize: file.size 
+    });
 
     // 1️⃣ Save quotation in DB
     const query = `
-      INSERT INTO budget_quotations (lead_id, email, file_data, sent_status) 
-      VALUES (?, ?, ?, 1)
+      INSERT INTO budget_quotations (lead_id, email, file_path, created_at) 
+      VALUES (?, ?, ?, NOW())
     `;
-    console.log('💾 Saving quotation to DB...');
-    console.log('➡️ Values:', { leadId, email, fileName: file.originalname });
 
-    await db.query(query, [leadId, email, fileBuffer]);
+    await db.query(query, [leadId, email, relativePath]);
+    console.log('✅ Quotation stored in DB successfully');
 
-    console.log('✅ Quotation stored in DB successfully with sent_status = 1');
-
-    // 2️⃣ Send email
+    // 2️⃣ Send email with attachment
     console.log('📧 Preparing transporter...');
     const transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
@@ -156,42 +140,227 @@ router.post('/send-budget-quotation', upload.single('quotation'), async (req, re
       secure: false,
       auth: {
         user: 'landnestiiiqbets@gmail.com',
-        pass: 'ohzh apyb wvsm wkti', // Gmail App Password from reference
+        pass: 'ohzh apyb wvsm wkti',
       },
       tls: { rejectUnauthorized: false },
     });
 
     console.log('📧 Sending email to:', email);
-    await transporter.sendMail({
+    
+    // Read file for email attachment
+    const fileBuffer = fs.readFileSync(filePath);
+    
+    const mailOptions = {
       from: '"SBS Company" <landnestiiiqbets@gmail.com>',
       to: email,
-      subject: `Quotation for ${leadName}`,
-      text: `Dear ${leadName},\n\nPlease find the attached quotation.\n\nBest regards,\nYour Team`,
+      subject: `Budget Quotation for ${leadName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">SBS Company - Budget Quotation</h2>
+          <p>Dear ${leadName},</p>
+          <p>Please find attached the budget quotation you requested.</p>
+          <p><strong>Lead ID:</strong> Lead00${leadId}</p>
+          <p><strong>Business:</strong> ${req.body.businessName || 'N/A'}</p>
+          <br/>
+          <p>If you have any questions, please don't hesitate to contact us.</p>
+          <br/>
+          <p>Best regards,<br/>Your Team at SBS Company</p>
+        </div>
+      `,
       attachments: [
         {
           filename: file.originalname,
           content: fileBuffer,
+          contentType: file.mimetype,
         },
       ],
-    });
+    };
 
-    console.log('✅ Email sent successfully');
+    const emailResult = await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent successfully:', emailResult.messageId);
+
+    // 3️⃣ Update lead status if needed
+    try {
+      const updateQuery = `UPDATE emailleads SET quotation_status = 'Sent' WHERE id = ?`;
+      await db.query(updateQuery, [leadId]);
+      console.log('✅ Lead quotation status updated to "Sent"');
+    } catch (updateError) {
+      console.warn('⚠️ Could not update lead status:', updateError.message);
+    }
 
     res.json({
       success: true,
-      message: 'Quotation sent successfully',
+      message: 'Quotation sent successfully and stored in database',
+      emailId: emailResult.messageId,
+      fileName: file.originalname,
+      storedPath: relativePath
     });
+
   } catch (err) {
     console.error('❌ Error in send-budget-quotation:', err);
+    
+    let errorMessage = 'Failed to send quotation';
+    if (err.code === 'EAUTH') {
+      errorMessage = 'Email authentication failed. Check SMTP credentials.';
+    } else if (err.code === 'ENOTFOUND') {
+      errorMessage = 'Cannot connect to email server. Check internet connection.';
+    } else if (err.code === 'EENVELOPE') {
+      errorMessage = 'Invalid email address.';
+    }
+
     res.status(500).json({
       success: false,
-      error: err.message || 'Failed to send quotation',
+      error: errorMessage,
+      details: err.message
     });
   }
 });
 
 
 
+// POST /api/send-budget-quotation - Fixed route
+router.post('/send-budget-quotation', upload.single('quotation'), async (req, res) => {
+  console.log('📩 Request received at /api/send-budget-quotation');
+
+  try {
+    // Log raw body & file with full path details
+    console.log('📝 req.body:', req.body);
+    console.log('📎 req.file:', req.file ? {
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path,
+      filename: req.file.filename,
+      destination: req.file.destination
+    } : 'No file received');
+
+    const { email, leadId, leadName } = req.body;
+    const file = req.file;
+
+    // Validation
+    if (!email || !leadId || !file) {
+      console.error('❌ Missing required fields:', { email, leadId, file: !!file });
+      return res.status(400).json({ success: false, error: 'Missing required fields: email, leadId, and file are required' });
+    }
+
+    // ✅ FIXED: Use the actual file path from Multer
+    const filePath = file.path; // This is the actual path where file is stored
+    const relativePath = `uploads/${file.filename}`; // For database storage
+    
+    console.log('🔍 File path details:', {
+      actualPath: filePath,
+      relativePath: relativePath,
+      fileExists: fs.existsSync(filePath)
+    });
+
+    // Check if file actually exists
+    if (!fs.existsSync(filePath)) {
+      console.error('❌ File not found at path:', filePath);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Uploaded file not found on server' 
+      });
+    }
+
+    console.log('💾 Saving quotation to DB...');
+    console.log('➡️ Values:', { 
+      leadId, 
+      email, 
+      filePath: relativePath,
+      fileSize: file.size 
+    });
+
+    // 1️⃣ Save quotation in DB
+    const query = `
+      INSERT INTO budget_quotations (lead_id, email, file_path, created_at) 
+      VALUES (?, ?, ?, NOW())
+    `;
+
+    await db.query(query, [leadId, email, relativePath]);
+    console.log('✅ Quotation stored in DB successfully');
+
+    // 2️⃣ Send email with attachment
+    console.log('📧 Preparing transporter...');
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth: {
+        user: 'landnestiiiqbets@gmail.com',
+        pass: 'ohzh apyb wvsm wkti',
+      },
+      tls: { rejectUnauthorized: false },
+    });
+
+    console.log('📧 Sending email to:', email);
+    
+    // ✅ FIXED: Use the actual file path
+    const fileBuffer = fs.readFileSync(filePath);
+    
+    const mailOptions = {
+      from: '"SBS Company" <landnestiiiqbets@gmail.com>',
+      to: email,
+      subject: `Budget Quotation for ${leadName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #2563eb;">SBS Company - Budget Quotation</h2>
+          <p>Dear ${leadName},</p>
+          <p>Please find attached the budget quotation you requested.</p>
+          <p><strong>Lead ID:</strong> Lead00${leadId}</p>
+          <p><strong>Business:</strong> ${req.body.businessName || 'N/A'}</p>
+          <br/>
+          <p>If you have any questions, please don't hesitate to contact us.</p>
+          <br/>
+          <p>Best regards,<br/>Your Team at SBS Company</p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: file.originalname,
+          content: fileBuffer,
+          contentType: file.mimetype,
+        },
+      ],
+    };
+
+    const emailResult = await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent successfully:', emailResult.messageId);
+
+    // 3️⃣ Update lead status if needed
+    try {
+      const updateQuery = `UPDATE emailleads SET quotation_status = 'Sent' WHERE id = ?`;
+      await db.query(updateQuery, [leadId]);
+      console.log('✅ Lead quotation status updated to "Sent"');
+    } catch (updateError) {
+      console.warn('⚠️ Could not update lead status:', updateError.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Quotation sent successfully and stored in database',
+      emailId: emailResult.messageId,
+      fileName: file.originalname
+    });
+
+  } catch (err) {
+    console.error('❌ Error in send-budget-quotation:', err);
+    
+    let errorMessage = 'Failed to send quotation';
+    if (err.code === 'EAUTH') {
+      errorMessage = 'Email authentication failed. Check SMTP credentials.';
+    } else if (err.code === 'ENOTFOUND') {
+      errorMessage = 'Cannot connect to email server. Check internet connection.';
+    } else if (err.code === 'EENVELOPE') {
+      errorMessage = 'Invalid email address.';
+    }
+
+    res.status(500).json({
+      success: false,
+      error: errorMessage,
+      details: err.message
+    });
+  }
+});
 
 
 router.post("/add-lead-product", async (req, res) => {
