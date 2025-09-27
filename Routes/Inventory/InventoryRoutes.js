@@ -255,4 +255,175 @@ router.post("/products-main", upload.any(), async (req, res) => {
   }
 });
 
+
+// Get single product by ID
+router.get("/product/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    const [rows] = await db.query(
+      "SELECT * FROM product_details WHERE detail_id = ?",
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching product:", err);
+    res.status(500).json({ error: "Failed to fetch product" });
+  }
+});
+
+
+
+// UPDATE product
+router.put("/product/:id", upload.any(), async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    // Fetch existing product
+    const [existingRows] = await db.query(
+      "SELECT * FROM product_details WHERE detail_id = ?",
+      [id]
+    );
+
+    if (existingRows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const existing = existingRows[0];
+
+    const {
+      detail_id,
+      maincategory_id,
+      subcategory_id,
+          product_id,
+      batch,
+      description,
+      size,
+      hsncode,
+      gstrate,
+      listprice,
+      moq,
+      Quantity,
+      existing_product_image,
+      existing_tech_specs
+    } = req.body;
+
+    // --- Handle uploaded files ---
+    let productImageFilename = existing.product_image; // default to current DB value
+    let techSpecsFilename = existing.tech_specs;       // default to current DB value
+
+    if (req.files && req.files.length > 0) {
+      const productImageFile = req.files.find(f => f.fieldname === "product_image");
+      const techSpecsFile = req.files.find(f => f.fieldname === "tech_specs");
+
+      if (productImageFile) {
+        // Remove old file if exists
+        if (existing.product_image) {
+          const oldPath = path.join(__dirname, '../../Uploads/products', existing.product_image);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+        productImageFilename = productImageFile.filename;
+      } else if (existing_product_image) {
+        // User did not upload a new file, keep old
+        productImageFilename = existing_product_image;
+      }
+
+      if (techSpecsFile) {
+        if (existing.tech_specs) {
+          const oldPath = path.join(__dirname, '../../Uploads/products', existing.tech_specs);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        }
+        techSpecsFilename = techSpecsFile.filename;
+      } else if (existing_tech_specs) {
+        techSpecsFilename = existing_tech_specs;
+      }
+    }
+
+    // --- UPDATE query ---
+    await db.query(
+      `UPDATE product_details SET
+      detail_id = ?,
+        maincategory_id = ?,
+        subcategory_id = ?,
+ product_id = ?,
+        batch = ?,
+       
+        description = ?,
+        size = ?,
+        hsncode = ?,
+        gstrate = ?,
+        listprice = ?,
+        moq = ?,
+        Quantity = ?,
+        product_image = ?,
+        tech_specs = ?
+      WHERE detail_id= ?`,
+      [
+        detail_id,
+        maincategory_id,
+        subcategory_id,
+        product_id,
+        batch,
+        description,
+        size,
+        hsncode,
+        gstrate,
+        listprice,
+        moq,
+        Quantity,
+        productImageFilename,
+        techSpecsFilename,
+        id
+      ]
+    );
+
+    res.json({
+      message: "Product updated successfully",
+      product_image: productImageFilename,
+      tech_specs: techSpecsFilename
+    });
+
+  } catch (err) {
+    console.error("Error updating product:", err.message);
+    res.status(500).json({ error: `Failed to update product: ${err.message}` });
+  }
+});
+
+
+
+// DELETE product
+router.delete("/product/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    const [existingRows] = await db.query(
+      "SELECT * FROM product_details WHERE detail_id = ?",
+      [id]
+    );
+    if (existingRows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    const existing = existingRows[0];
+
+    await db.query("DELETE FROM product_details WHERE detail_id = ?", [id]);
+
+    if (existing.product_image) {
+      const filePath = path.join("Uploads/products", existing.product_image);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    if (existing.tech_specs) {
+      const filePath = path.join("Uploads/products", existing.tech_specs);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+
+    res.json({ message: "Product deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting product:", err.message);
+    res.status(500).json({ error: `Failed to delete product: ${err.message}` });
+  }
+});
+
 module.exports = router;

@@ -396,6 +396,42 @@ router.post("/update-quantity", async (req, res) => {
 });
 
 
+// GET discount
+router.get("/lead/:id/discount", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query("SELECT discount, discountType FROM emailleads WHERE id = ?", [id]);
+    if (rows.length > 0) {
+      // ✅ Fixed capitalization: rows[0].discount instead of rows[0].Discount
+      res.json({ 
+        success: true, 
+        Discount: rows[0].discount,  
+        discountType: rows[0].discountType || "percentage" 
+      });
+    } else {
+      res.json({ success: false, message: "Lead not found" });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error fetching discount" });
+  }
+});
+
+
+// UPDATE discount
+router.put("/lead/:id/discount", async (req, res) => {
+  const { id } = req.params;
+  const { discount, discountType } = req.body;
+  try {
+    await db.query("UPDATE emailleads SET discount = ?, discountType = ? WHERE id = ?", [discount, discountType, id]);
+    res.json({ success: true, message: "Discount updated successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Error updating discount" });
+  }
+});
+
+
 
 
 
