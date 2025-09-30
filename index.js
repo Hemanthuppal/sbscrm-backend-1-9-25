@@ -12,6 +12,7 @@ const Assignment = require('./Routes/Assign/assignmentRoute');
 const SendQuotationRoutes = require('./Routes/Quotations/SendQuotationRoutes');
 const APIRoutes = require('./Routes/AiApi/AiRoute');
 const InventoryRoutes = require('./Routes/Inventory/InventoryRoutes');
+const QuotationEmail = require('./Routes/QuotationEmail/Email');
 
 const db = require('./Config/db');
 const { fetchAndProcessEmails, testPort } = require('./EmailLeads/Eamilleads');
@@ -42,6 +43,8 @@ app.use('/api', InventoryRoutes);
  
 
 app.use('/api', APIRoutes);
+
+app.use('/api', QuotationEmail);
 
 (async () => {
     try {
