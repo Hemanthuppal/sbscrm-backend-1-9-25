@@ -40,7 +40,6 @@ app.use('/api',SendQuotationRoutes);
 app.use('/api', Comment);
 app.use('/api', InventoryRoutes);
  
-
 app.use('/api', APIRoutes);
 
 (async () => {
