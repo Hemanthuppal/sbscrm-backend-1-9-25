@@ -426,4 +426,138 @@ router.delete("/product/:id", async (req, res) => {
   }
 });
 
+
+// stockRoutes.js
+
+// Stock In
+router.post('/stock/in', async (req, res) => {
+    const { detail_id, quantity, reason, reference_number, notes } = req.body;
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        const [product] = await connection.query(
+            'SELECT * FROM product_details WHERE detail_id = ?',
+            [detail_id]
+        );
+
+        if (!product || product.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        // Parse VARCHAR as number
+        const previousQuantity = parseInt(product[0].Quantity || "0", 10);
+        const qty = parseInt(quantity, 10);
+        const newQuantity = previousQuantity + qty;
+
+        // Store back as string
+        await connection.query(
+            'UPDATE product_details SET Quantity = ? WHERE detail_id = ?',
+            [String(newQuantity), detail_id]
+        );
+
+        await connection.query(
+            `INSERT INTO stock_history 
+             (detail_id, action_type, quantity_change, previous_quantity, 
+              new_quantity, reason, reference_number, notes) 
+             VALUES (?, 'stock_in', ?, ?, ?, ?, ?, ?)`,
+            [detail_id, qty, previousQuantity, newQuantity, reason, reference_number, notes]
+        );
+
+        await connection.commit();
+        connection.release();
+        res.json({ success: true, newQuantity });
+
+    } catch (error) {
+        if (connection) {
+            await connection.rollback();
+            connection.release();
+        }
+        console.error('Stock in error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+// Stock Out
+router.post('/stock/out', async (req, res) => {
+    const { detail_id, quantity, reason, reference_number, notes } = req.body;
+
+    let connection;
+    try {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        const [product] = await connection.query(
+            'SELECT * FROM product_details WHERE detail_id = ?',
+            [detail_id]
+        );
+
+        if (!product || product.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Product not found' });
+        }
+
+        const previousQuantity = parseInt(product[0].Quantity || "0", 10);
+        const qty = parseInt(quantity, 10);
+        const newQuantity = previousQuantity - qty;
+
+        if (newQuantity < 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'Not enough stock available' });
+        }
+
+        await connection.query(
+            'UPDATE product_details SET Quantity = ? WHERE detail_id = ?',
+            [String(newQuantity), detail_id]
+        );
+
+        await connection.query(
+            `INSERT INTO stock_history 
+             (detail_id, action_type, quantity_change, previous_quantity, 
+              new_quantity, reason, reference_number, notes) 
+             VALUES (?, 'stock_out', ?, ?, ?, ?, ?, ?)`,
+            [detail_id, qty, previousQuantity, newQuantity, reason, reference_number, notes]
+        );
+
+        await connection.commit();
+        connection.release();
+        res.json({ success: true, newQuantity });
+
+    } catch (error) {
+        if (connection) {
+            await connection.rollback();
+            connection.release();
+        }
+        console.error('Stock out error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+// Get stock history by detail_id (no transaction needed for read operations)
+router.get('/stock/history/:id', async (req, res) => {
+    try {
+        const [history] = await db.query(
+            `SELECT sh.*, pd.batch, pd.size
+             FROM stock_history sh
+             LEFT JOIN product_details pd ON sh.detail_id = pd.detail_id
+             WHERE sh.detail_id = ?
+             ORDER BY sh.created_at DESC`,
+            [req.params.id]
+        );
+
+        res.json(history);
+    } catch (error) {
+        console.error('Stock history error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 module.exports = router;
