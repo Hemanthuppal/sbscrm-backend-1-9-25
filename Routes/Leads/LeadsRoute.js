@@ -518,7 +518,7 @@ router.post('/newleads', async (req, res) => {
   const { lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, products } = req.body;
   console.log("Received lead data:", req.body);
 
-  const connection = await db.getConnection();
+  const connection = await db.getConnection(); 
   try {
     await connection.beginTransaction();
 
@@ -563,6 +563,72 @@ router.post('/newleads', async (req, res) => {
     connection.release();
   }
 });
+
+// 📌 This api was used in Manager and Associate panel which stores user_id in assigned_to 
+router.post('/newleads/manager', async (req, res) => {
+  const { 
+    lead_name, 
+    business_name, 
+    lead_source, 
+    contact_number, 
+    email, 
+    whatsapp_number, 
+    preferred_contact_method, 
+    terms_conditions, 
+    products,
+    user_id    // 👈 Manager's user ID will come from frontend
+  } = req.body;
+
+  console.log("Received manager lead data:", req.body);
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Insert into emailleads with assigned_to (manager)
+    const [leadResult] = await connection.query(
+      `INSERT INTO emailleads 
+       (lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, assigned_to, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, user_id]
+    );
+
+    const lead_id = leadResult.insertId;
+
+    // Insert matched products
+    for (const product of products) {
+      await connection.query(
+        `INSERT INTO matched_products 
+        (lead_id, email_product_id, maincategory_name, subcategory_name, product_name, batch, description, size, hsncode, gstrate, listprice, moq, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          lead_id,
+          product.detail_id,
+          product.maincategory_name || '',
+          product.subcategory_name || '',
+          product.product_name,
+          product.batch,
+          product.description || '',
+          product.size || '',
+          product.hsncode || '',
+          product.gstrate || 0,
+          product.listprice || 0,
+          product.quantity || 1,
+        ]
+      );
+    }
+
+    await connection.commit();
+    res.status(201).json({ message: 'Lead created successfully (Manager)', lead_id });
+  } catch (err) {
+    await connection.rollback();
+    console.error('POST /api/newleads/manager error:', err);
+    res.status(500).json({ code: err.code, message: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
 
 // -------------------- UPDATE LEAD --------------------
 router.put('/leads/:id', async (req, res) => {
