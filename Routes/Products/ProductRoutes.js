@@ -396,6 +396,30 @@ router.post("/update-quantity", async (req, res) => {
 });
 
 
+// POST /api/update-price
+router.post("/update-price", async (req, res) => {
+  const { product_id, listprice } = req.body;
+
+  if (!product_id || listprice == null) {
+    return res.status(400).json({ success: false, message: "Missing fields" });
+  }
+
+  try {
+    await db.query(
+      "UPDATE matched_products SET listprice = ? WHERE id = ?",
+      [listprice, product_id]
+    );
+    res.json({ success: true, message: "Price updated successfully" });
+  } catch (err) {
+    console.error("Error updating price:", err);
+    res.status(500).json({ success: false, message: "Database error" });
+  }
+});
+
+
+
+
+
 // GET discount
 router.get("/lead/:id/discount", async (req, res) => {
   const { id } = req.params;
