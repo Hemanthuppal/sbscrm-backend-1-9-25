@@ -105,4 +105,110 @@ router.get('/leadsoppcomment/:leadid', async (req, res) => {
 });
 
 
+
+
+// router.get('/followups/:leadid', (req, res) => {
+//   const { leadid } = req.params;
+//   const sql = 'SELECT * FROM followups WHERE leadid = ? ORDER BY followup_date DESC';
+//   db.query(sql, [leadid], (err, results) => {
+//     if (err) {
+//       console.error('Database error:', err);
+//       return res.status(500).json({ error: 'Failed to fetch follow-ups' });
+//     }
+//     res.json(results);
+//   });
+// });
+
+
+router.get('/followups/:leadid', async (req, res) => {
+  const { leadid } = req.params;
+
+  try {
+    const [results] = await db.query(
+      'SELECT * FROM followups WHERE leadid = ? ORDER BY followup_date DESC',
+      [leadid]
+    );
+
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('Error fetching followups:', err);
+    res.status(500).json({ error: 'Failed to fetch followups' });
+  }
+});
+
+
+
+// POST a new follow-up
+router.post('/followups', (req, res) => {
+  const { leadid, name, note, status, followup_date } = req.body;
+console.log("followup",req.body);
+  if (!leadid || !name || !note || !status || !followup_date) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const sql = 'INSERT INTO followups (leadid, name, note, status, followup_date) VALUES (?, ?, ?, ?, ?)';
+  db.query(sql, [leadid, name, note, status, followup_date], (err, result) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to add follow-up' });
+    }
+
+    // Return the newly inserted follow-up
+    // db.query('SELECT * FROM followups WHERE id = ?', [result.insertId], (err, rows) => {
+    //   if (err) {
+    //     console.error('Database error fetching new row:', err);
+    //     return res.status(500).json({ error: 'Failed to fetch new follow-up' });
+    //   }
+    //   res.json(rows[0]);
+    // });
+  });
+});
+
+
+
+router.get('/followupsnew/:leadid', async (req, res) => {
+  const { leadid } = req.params;
+
+  try {
+    const [results] = await db.query(
+      'SELECT * FROM followups WHERE leadid = ? ORDER BY followup_date DESC',
+      [leadid]
+    );
+
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('Error fetching followups:', err);
+    res.status(500).json({ error: 'Failed to fetch followups' });
+  }
+});
+
+// -------------------- ADD COMMENT + NOTIFICATIONS --------------------
+router.post('/followupsnew', async (req, res) => {
+  const { leadid, name, note, status, followup_date } = req.body;
+
+  // if (!leadid || !timestamp || !text) {
+  //   return res.status(400).json({ error: 'leadid, timestamp, and text are required' });
+  // }
+
+  try {
+    // Insert comment
+    const [result] = await db.query(
+    'INSERT INTO followups (leadid, name, note, status, followup_date) VALUES (?, ?, ?, ?, ?)',
+      [leadid, name, note, status, followup_date]
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+     leadid, name, note, status, followup_date
+    });
+
+    
+
+ 
+  } catch (err) {
+    console.error('Error adding comment:', err);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
 module.exports = router;
