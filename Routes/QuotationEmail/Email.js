@@ -148,7 +148,7 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
           filePaths || null,
           type || "sent",
           1,
-          info.messageId,
+          info.messageId, // This is where message_id is stored from nodemailer response
           newQuotationId,
           cc.length > 0 ? JSON.stringify(cc) : null,
           bcc.length > 0 ? JSON.stringify(bcc) : null
@@ -160,8 +160,8 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         if (quotation) {
           const quotationQuery = `
             INSERT INTO quotations 
-              (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status, discount, discountType) 
-            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?)
+              (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status, discount, discountType, message_id) 
+            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?)
           `;
 
           await db.query(quotationQuery, [
@@ -172,11 +172,12 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             quotation.grandTotal,
             JSON.stringify(quotation.products || []),
             quotation.discount || 0,
-            quotation.discountType || "percentage"
+            quotation.discountType || "percentage",
+            info.messageId // Add message_id to quotations table as well
           ]);
         }
 
-        return { success: true, receiver: receiver_email };
+        return { success: true, receiver: receiver_email, messageId: info.messageId };
 
       } catch (error) {
         console.error(`Error sending email to ${receiver_email}:`, error);
@@ -188,24 +189,13 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const successfulSends = results.filter(result => result.success);
     const failedSends = results.filter(result => !result.success);
 
-    // Update travel_opportunity with quotation_id if available
-    // if (newQuotationId && successfulSends.length > 0) {
-    //   try {
-    //     await db.query(
-    //       `UPDATE travel_opportunity SET quotation_id = ? WHERE leadid = ?`,
-    //       [newQuotationId, leadid]
-    //     );
-    //   } catch (updateErr) {
-    //     console.error("Error updating travel_opportunity:", updateErr);
-    //   }
-    // }
-
     if (failedSends.length === 0) {
       res.json({
         success: true,
         message: "Quotation email sent successfully!",
         quotation_id: newQuotationId,
-        sent_count: successfulSends.length
+        sent_count: successfulSends.length,
+        message_ids: successfulSends.map(s => s.messageId) // Return message IDs for reference
       });
     } else {
       res.json({
@@ -213,7 +203,8 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         message: `${successfulSends.length} emails sent successfully, ${failedSends.length} failed`,
         quotation_id: newQuotationId,
         sent_count: successfulSends.length,
-        failed_count: failedSends.length
+        failed_count: failedSends.length,
+        message_ids: successfulSends.map(s => s.messageId)
       });
     }
 
