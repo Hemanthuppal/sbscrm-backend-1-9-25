@@ -211,4 +211,59 @@ router.post('/followupsnew', async (req, res) => {
   }
 });
 
+
+// GET all companies
+router.get("/company", async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM company");
+    if (rows.length === 0) return res.status(404).json({ message: "No companies found" });
+    res.json(rows); // return array
+  } catch (err) {
+    console.error("💥 DB GET ERROR:", err);
+    res.status(500).json({ message: "Error fetching companies", error: err.message });
+  }
+});
+
+// GET company by ID
+router.get("/company/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.query("SELECT * FROM company WHERE id = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Company not found" });
+    res.json(rows[0]); // return single company
+  } catch (err) {
+    console.error("💥 DB GET ERROR:", err);
+    res.status(500).json({ message: "Error fetching company", error: err.message });
+  }
+});
+
+// PUT update company by ID
+router.put("/company/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { legalName, bankName, accountNo, ifscCode, branch, gstin, pan, iec, isoCer } = req.body;
+
+    const query = `
+      UPDATE company 
+      SET legalName = ?, bankName = ?, accountNo = ?, ifscCode = ?, branch = ?, gstin = ?, pan = ?, iec = ?, isoCer = ?
+      WHERE id = ?
+    `;
+
+    const [result] = await db.query(query, [legalName, bankName, accountNo, ifscCode, branch, gstin, pan, iec, isoCer, id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Fetch updated row
+    const [updatedCompany] = await db.query(`SELECT * FROM company WHERE id = ?`, [id]);
+
+    res.json(updatedCompany[0]); // ✅ send updated company directly
+  } catch (err) {
+    console.error("💥 DB UPDATE ERROR:", err);
+    res.status(500).json({ message: "Error updating company", error: err.message });
+  }
+});
+
+
 module.exports = router;

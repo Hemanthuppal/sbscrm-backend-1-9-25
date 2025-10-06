@@ -81,9 +81,7 @@ router.get('/products/:subId', async (req, res) => {
 });
 
 
-
-// routes/quotations.js
-// Get latest quotation per lead_id with count
+// Get latest quotation per lead_id with count, only sent quotations
 router.get('/quotations', async (req, res) => {
   try {
     const [results] = await db.query(
@@ -95,11 +93,12 @@ router.get('/quotations', async (req, res) => {
          GROUP BY lead_id
        ) counts
        ON q.lead_id = counts.lead_id AND q.created_at = counts.latest_date
-       ORDER BY q.created_at DESC, q.sent_status DESC`
+       WHERE q.sent_status = 1
+       ORDER BY q.created_at DESC`
     );
 
     if (results.length === 0) {
-      return res.status(404).json({ message: 'No quotations found' });
+      return res.status(404).json({ message: 'No sent quotations found' });
     }
 
     res.status(200).json(results);
@@ -108,6 +107,7 @@ router.get('/quotations', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch quotations' });
   }
 });
+
 
 // Optional: single quotation by leadid (latest one)
 router.get('/quotations/:leadid', async (req, res) => {
