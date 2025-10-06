@@ -91,7 +91,7 @@ router.get("/contacts/qualified", async (req, res) => {
   try {
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, l.created_at,
-      l.status, l.opp_status,l.quotation_status,l.message_id
+      l.status, l.opp_status,l.quotation_status,l.message_id, l.quotation_body
       FROM emailleads l  
       WHERE l.status = 'Qualified'
       ORDER BY l.created_at DESC
@@ -238,7 +238,7 @@ router.get('/contacts/qualified/:userid', async (req, res) => {
 
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, 
-             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status,l.quotation_status,l.message_id
+             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status,l.quotation_status,l.message_id, l.quotation_body
       FROM emailleads l
       LEFT JOIN employees e ON l.assigned_to = e.id
       WHERE (l.assigned_to = ? OR e.managerId = ?)
@@ -782,6 +782,80 @@ router.put('/leads/:id/terms-conditions', async (req, res) => {
     
   } catch (err) {
     console.error('PUT /api/leads/:id/terms-conditions error:', err);
+    res.status(500).json({ 
+      success: false,
+      code: err.code, 
+      message: err.message 
+    });
+  }
+});
+
+// GET Quotation Body
+router.get('/leads/:id/quotation-body', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query('SELECT quotation_body FROM emailleads WHERE id = ?', [id]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Lead not found' 
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        quotation_body: rows[0].quotation_body
+      }
+    });
+    
+  } catch (err) {
+    console.error('GET /api/leads/:id/quotation-body error:', err);
+    res.status(500).json({ 
+      success: false,
+      code: err.code, 
+      message: err.message 
+    });
+  }
+});
+
+// PUT Quotation Body
+router.put('/leads/:id/quotation-body', async (req, res) => {
+  const { id } = req.params;
+  const { quotation_body } = req.body;
+  
+  try {
+    // Validate input
+    if (!quotation_body || typeof quotation_body !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid quotation_body is required'
+      });
+    }
+
+    const [result] = await db.query(
+      'UPDATE emailleads SET quotation_body = ? WHERE id = ?',
+      [quotation_body, id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Quotation body updated successfully',
+      data: {
+        quotation_body
+      }
+    });
+    
+  } catch (err) {
+    console.error('PUT /api/leads/:id/quotation-body error:', err);
     res.status(500).json({ 
       success: false,
       code: err.code, 
