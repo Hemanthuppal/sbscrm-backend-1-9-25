@@ -105,4 +105,165 @@ router.get('/leadsoppcomment/:leadid', async (req, res) => {
 });
 
 
+
+
+// router.get('/followups/:leadid', (req, res) => {
+//   const { leadid } = req.params;
+//   const sql = 'SELECT * FROM followups WHERE leadid = ? ORDER BY followup_date DESC';
+//   db.query(sql, [leadid], (err, results) => {
+//     if (err) {
+//       console.error('Database error:', err);
+//       return res.status(500).json({ error: 'Failed to fetch follow-ups' });
+//     }
+//     res.json(results);
+//   });
+// });
+
+
+router.get('/followups/:leadid', async (req, res) => {
+  const { leadid } = req.params;
+
+  try {
+    const [results] = await db.query(
+      'SELECT * FROM followups WHERE leadid = ? ORDER BY followup_date DESC',
+      [leadid]
+    );
+
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('Error fetching followups:', err);
+    res.status(500).json({ error: 'Failed to fetch followups' });
+  }
+});
+
+
+
+// POST a new follow-up
+router.post('/followups', (req, res) => {
+  const { leadid, name, note, status, followup_date } = req.body;
+console.log("followup",req.body);
+  if (!leadid || !name || !note || !status || !followup_date) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  const sql = 'INSERT INTO followups (leadid, name, note, status, followup_date) VALUES (?, ?, ?, ?, ?)';
+  db.query(sql, [leadid, name, note, status, followup_date], (err, result) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to add follow-up' });
+    }
+
+    // Return the newly inserted follow-up
+    // db.query('SELECT * FROM followups WHERE id = ?', [result.insertId], (err, rows) => {
+    //   if (err) {
+    //     console.error('Database error fetching new row:', err);
+    //     return res.status(500).json({ error: 'Failed to fetch new follow-up' });
+    //   }
+    //   res.json(rows[0]);
+    // });
+  });
+});
+
+
+
+router.get('/followupsnew/:leadid', async (req, res) => {
+  const { leadid } = req.params;
+
+  try {
+    const [results] = await db.query(
+      'SELECT * FROM followups WHERE leadid = ? ORDER BY followup_date DESC',
+      [leadid]
+    );
+
+    res.status(200).json(results);
+  } catch (err) {
+    console.error('Error fetching followups:', err);
+    res.status(500).json({ error: 'Failed to fetch followups' });
+  }
+});
+
+// -------------------- ADD COMMENT + NOTIFICATIONS --------------------
+router.post('/followupsnew', async (req, res) => {
+  const { leadid, name, note, status, followup_date } = req.body;
+
+  // if (!leadid || !timestamp || !text) {
+  //   return res.status(400).json({ error: 'leadid, timestamp, and text are required' });
+  // }
+
+  try {
+    // Insert comment
+    const [result] = await db.query(
+    'INSERT INTO followups (leadid, name, note, status, followup_date) VALUES (?, ?, ?, ?, ?)',
+      [leadid, name, note, status, followup_date]
+    );
+
+    res.status(201).json({
+      id: result.insertId,
+     leadid, name, note, status, followup_date
+    });
+
+    
+
+ 
+  } catch (err) {
+    console.error('Error adding comment:', err);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+
+// GET all companies
+router.get("/company", async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM company");
+    if (rows.length === 0) return res.status(404).json({ message: "No companies found" });
+    res.json(rows); // return array
+  } catch (err) {
+    console.error("💥 DB GET ERROR:", err);
+    res.status(500).json({ message: "Error fetching companies", error: err.message });
+  }
+});
+
+// GET company by ID
+router.get("/company/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.query("SELECT * FROM company WHERE id = ?", [id]);
+    if (rows.length === 0) return res.status(404).json({ message: "Company not found" });
+    res.json(rows[0]); // return single company
+  } catch (err) {
+    console.error("💥 DB GET ERROR:", err);
+    res.status(500).json({ message: "Error fetching company", error: err.message });
+  }
+});
+
+// PUT update company by ID
+router.put("/company/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { legalName, bankName, accountNo, ifscCode, branch, gstin, pan, iec, isoCer } = req.body;
+
+    const query = `
+      UPDATE company 
+      SET legalName = ?, bankName = ?, accountNo = ?, ifscCode = ?, branch = ?, gstin = ?, pan = ?, iec = ?, isoCer = ?
+      WHERE id = ?
+    `;
+
+    const [result] = await db.query(query, [legalName, bankName, accountNo, ifscCode, branch, gstin, pan, iec, isoCer, id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Company not found" });
+    }
+
+    // Fetch updated row
+    const [updatedCompany] = await db.query(`SELECT * FROM company WHERE id = ?`, [id]);
+
+    res.json(updatedCompany[0]); // ✅ send updated company directly
+  } catch (err) {
+    console.error("💥 DB UPDATE ERROR:", err);
+    res.status(500).json({ message: "Error updating company", error: err.message });
+  }
+});
+
+
 module.exports = router;
