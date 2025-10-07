@@ -43,7 +43,7 @@ const transporter = nodemailer.createTransport({
   tls: { rejectUnauthorized: false },
 });
 
-// Quotation Email Route
+// 📩 Send Quotation Email Route
 router.post("/send-quotation-email", upload.array("files", 5), async (req, res) => {
   try {
     console.log("\n======================= 📧 NEW QUOTATION EMAIL REQUEST =======================");
@@ -60,7 +60,10 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
       receiver_emails,
       cc_emails,
       bcc_emails,
-      quotationData
+      quotationData,
+      receiver_details,
+      company_details,
+      regard_details,
     } = req.body;
 
     const files = req.files || [];
@@ -75,10 +78,18 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const bcc = bcc_emails ? JSON.parse(bcc_emails) : [];
     const quotation = quotationData ? JSON.parse(quotationData) : null;
 
+    // ✅ Parse the new details safely
+    const receiverDetails = receiver_details ? JSON.parse(receiver_details) : {};
+    const companyDetails = company_details ? JSON.parse(company_details) : {};
+    const regardDetails = regard_details ? JSON.parse(regard_details) : {};
+
     console.log("✅ Parsed Receivers:", receivers);
     console.log("✅ Parsed CC:", cc);
     console.log("✅ Parsed BCC:", bcc);
     console.log("✅ Quotation Data:", quotation);
+    console.log("✅ Receiver Details:", receiverDetails);
+    console.log("✅ Company Details:", companyDetails);
+    console.log("✅ Regard Details:", regardDetails);
 
     if (!Array.isArray(receivers) || receivers.length === 0) {
       console.error("❌ Invalid receiver emails.");
@@ -130,7 +141,6 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
           })),
         };
 
-        // If this is a reply to existing conversation, add headers
         if (quotation && quotation.message_id) {
           mailOptions.headers = {
             "In-Reply-To": quotation.message_id,
@@ -144,7 +154,6 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         const info = await transporter.sendMail(mailOptions);
         console.log(`✅ Email sent to ${receiver_email}, MessageID: ${info.messageId}`);
 
-        // Store each email in database
         const sql = `
           INSERT INTO emails (
             leadid, sender_email, receiver_email, subject, text, 
@@ -164,23 +173,22 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
           filePaths || null,
           type || "sent",
           1,
-          info.messageId,  // ✅ message_id stays here
+          info.messageId,
           newQuotationId,
           cc.length > 0 ? JSON.stringify(cc) : null,
           bcc.length > 0 ? JSON.stringify(bcc) : null
         ];
 
-        console.log("🗂 Inserting into Emails Table:", values);
-
         await db.query(sql, values);
 
-        // If this is a quotation email, also save to quotations table
+        // ✅ Insert into quotations table with new JSON fields
         if (quotation) {
           const quotationQuery = `
             INSERT INTO quotations 
               (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, 
-               sent_status, discount, discountType, quotation_body, terms_conditions) 
-            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?, ?)
+               sent_status, discount, discountType, quotation_body, terms_conditions,
+               receiver_details, company_details, regard_details)
+            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
           `;
 
           const quotationValues = [
@@ -193,11 +201,13 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             quotation.discount || 0,
             quotation.discountType || "percentage",
             quotation.quotation_body || "",
-            quotation.terms_conditions || ""
+            quotation.terms_conditions || "",
+            JSON.stringify(receiverDetails || {}),
+            JSON.stringify(companyDetails || {}),
+            JSON.stringify(regardDetails || {})
           ];
 
           console.log("🗂 Inserting into Quotations Table:", quotationValues);
-
           await db.query(quotationQuery, quotationValues);
         }
 
@@ -212,8 +222,6 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const results = await Promise.all(emailPromises);
     const successfulSends = results.filter(result => result.success);
     const failedSends = results.filter(result => !result.success);
-
-    console.log("📊 Email Send Results:", { successfulSends, failedSends });
 
     if (failedSends.length === 0) {
       res.json({
@@ -242,6 +250,7 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     });
   }
 });
+
 
 
 // ✅ Export the router
