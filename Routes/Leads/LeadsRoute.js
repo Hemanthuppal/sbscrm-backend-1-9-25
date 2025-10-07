@@ -238,7 +238,7 @@ router.get('/contacts/qualified/:userid', async (req, res) => {
 
     const [results] = await db.query(`
       SELECT l.id, l.lead_name, l.email, l.contact_number, l.lead_source, l.terms_conditions, 
-             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status,l.quotation_status,l.message_id, l.quotation_body
+             l.created_at, l.assigned_by, l.assigned_to, l.status, l.opp_status,l.quotation_status,l.message_id, l.quotation_body ,l.gstin_lead 
       FROM emailleads l
       LEFT JOIN employees e ON l.assigned_to = e.id
       WHERE (l.assigned_to = ? OR e.managerId = ?)
