@@ -189,6 +189,39 @@ router.get('/emaileads/:id', async (req, res) => {
 
 
 
+// GET /api/user-quotations/:userId
+router.get("/user-quotations/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const query = `
+      SELECT q.*, el.assigned_to
+      FROM quotations q
+      JOIN emailleads el ON q.lead_id = el.id
+      WHERE q.sent_status = 1
+        AND el.assigned_to = ?
+        AND q.created_at = (
+          SELECT MAX(created_at)
+          FROM quotations q2
+          WHERE q2.lead_id = q.lead_id
+        )
+      ORDER BY q.created_at DESC
+    `;
+
+
+    const [rows] = await db.query(query, [userId]); 
+
+    res.json({
+      success: true,
+      data: rows,
+    });
+  } catch (err) {
+    console.error("Error fetching user quotations:", err);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
+
 
 
 module.exports = router;

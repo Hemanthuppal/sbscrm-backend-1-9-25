@@ -633,7 +633,7 @@ router.post('/newleads/manager', async (req, res) => {
 // -------------------- UPDATE LEAD --------------------
 router.put('/leads/:id', async (req, res) => {
   const { id } = req.params;
-  const { lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, products } = req.body;
+  const { lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, products, gstin_lead} = req.body;
 
   const connection = await db.getConnection();
   try {
@@ -641,9 +641,9 @@ router.put('/leads/:id', async (req, res) => {
 
     // Update emailleads
     await connection.query(
-      `UPDATE emailleads SET lead_name = ?, business_name = ?, lead_source = ?, contact_number = ?, email = ?, whatsapp_number = ?, preferred_contact_method = ?, terms_conditions = ?
+      `UPDATE emailleads SET lead_name = ?, business_name = ?, lead_source = ?, contact_number = ?, email = ?, whatsapp_number = ?, preferred_contact_method = ?, terms_conditions = ?, gstin_lead = ?
        WHERE id = ?`,
-      [lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, id]
+      [lead_name, business_name, lead_source, contact_number, email, whatsapp_number, preferred_contact_method, terms_conditions, gstin_lead, id]
     );
 
     // Delete old products
