@@ -9,43 +9,47 @@ const fs = require("fs");
 // Create uploads directory
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 // Multer Configuration
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const filename = `${file.fieldname}-${Date.now()}${ext}`;
-        cb(null, filename);
-    },
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const filename = `${file.fieldname}-${Date.now()}${ext}`;
+    cb(null, filename);
+  },
 });
 
-const upload = multer({ 
-    storage: storage,
-    limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB limit
-    }
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
 });
 
 // Nodemailer Configuration
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-        user: "landnestiiiqbets@gmail.com",
-        pass: "ohzh apyb wvsm wkti",
-    },
-    tls: { rejectUnauthorized: false },
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: "landnestiiiqbets@gmail.com",
+    pass: "ohzh apyb wvsm wkti",
+  },
+  tls: { rejectUnauthorized: false },
 });
 
 // Quotation Email Route
 router.post("/send-quotation-email", upload.array("files", 5), async (req, res) => {
   try {
+    console.log("\n======================= 📧 NEW QUOTATION EMAIL REQUEST =======================");
+    console.log("Raw Body:", req.body);
+    console.log("Uploaded Files:", req.files?.map(f => f.originalname));
+
     const {
       leadid,
       sender_email,
@@ -62,6 +66,7 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const files = req.files || [];
 
     if (!leadid || !sender_email || !receiver_emails) {
+      console.error("❌ Missing required fields:", { leadid, sender_email, receiver_emails });
       return res.status(400).json({ success: false, error: "Missing required fields." });
     }
 
@@ -70,7 +75,13 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const bcc = bcc_emails ? JSON.parse(bcc_emails) : [];
     const quotation = quotationData ? JSON.parse(quotationData) : null;
 
+    console.log("✅ Parsed Receivers:", receivers);
+    console.log("✅ Parsed CC:", cc);
+    console.log("✅ Parsed BCC:", bcc);
+    console.log("✅ Quotation Data:", quotation);
+
     if (!Array.isArray(receivers) || receivers.length === 0) {
+      console.error("❌ Invalid receiver emails.");
       return res.status(400).json({ success: false, error: "Invalid receiver emails." });
     }
 
@@ -96,8 +107,9 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         } else {
           newQuotationId = "Qu001";
         }
+        console.log("🆕 Generated Quotation ID:", newQuotationId);
       } catch (error) {
-        console.error("Error generating quotation ID:", error);
+        console.error("❌ Error generating quotation ID:", error);
         newQuotationId = "Qu001";
       }
     }
@@ -124,9 +136,13 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             "In-Reply-To": quotation.message_id,
             "References": quotation.message_id,
           };
+          console.log("🔗 Replying to Thread:", quotation.message_id);
         }
 
+        console.log("📨 Sending MailOptions:", mailOptions);
+
         const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ Email sent to ${receiver_email}, MessageID: ${info.messageId}`);
 
         // Store each email in database
         const sql = `
@@ -136,9 +152,9 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             cc_emails, bcc_emails, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         `;
-        
+
         const filePaths = files.map(f => `/uploads/${f.filename}`).join(',');
-        
+
         const values = [
           leadid,
           sender_email,
@@ -148,23 +164,26 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
           filePaths || null,
           type || "sent",
           1,
-          info.messageId, // This is where message_id is stored from nodemailer response
+          info.messageId,  // ✅ message_id stays here
           newQuotationId,
           cc.length > 0 ? JSON.stringify(cc) : null,
           bcc.length > 0 ? JSON.stringify(bcc) : null
         ];
 
-        const [result] = await db.query(sql, values);
+        console.log("🗂 Inserting into Emails Table:", values);
+
+        await db.query(sql, values);
 
         // If this is a quotation email, also save to quotations table
         if (quotation) {
           const quotationQuery = `
             INSERT INTO quotations 
-              (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, sent_status, discount, discountType, message_id) 
-            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?)
+              (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, 
+               sent_status, discount, discountType, quotation_body, terms_conditions) 
+            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?, ?)
           `;
 
-          await db.query(quotationQuery, [
+          const quotationValues = [
             quotation.leadId,
             quotation.quotationNumber,
             quotation.subtotal,
@@ -173,14 +192,19 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             JSON.stringify(quotation.products || []),
             quotation.discount || 0,
             quotation.discountType || "percentage",
-            info.messageId // Add message_id to quotations table as well
-          ]);
+            quotation.quotation_body || "",
+            quotation.terms_conditions || ""
+          ];
+
+          console.log("🗂 Inserting into Quotations Table:", quotationValues);
+
+          await db.query(quotationQuery, quotationValues);
         }
 
         return { success: true, receiver: receiver_email, messageId: info.messageId };
 
       } catch (error) {
-        console.error(`Error sending email to ${receiver_email}:`, error);
+        console.error(`❌ Error sending email to ${receiver_email}:`, error);
         return { success: false, receiver: receiver_email, error: error.message };
       }
     });
@@ -189,13 +213,15 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const successfulSends = results.filter(result => result.success);
     const failedSends = results.filter(result => !result.success);
 
+    console.log("📊 Email Send Results:", { successfulSends, failedSends });
+
     if (failedSends.length === 0) {
       res.json({
         success: true,
         message: "Quotation email sent successfully!",
         quotation_id: newQuotationId,
         sent_count: successfulSends.length,
-        message_ids: successfulSends.map(s => s.messageId) // Return message IDs for reference
+        message_ids: successfulSends.map(s => s.messageId)
       });
     } else {
       res.json({
@@ -209,13 +235,14 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     }
 
   } catch (error) {
-    console.error("Error in send-quotation-email:", error);
-    res.status(500).json({ 
+    console.error("❌ Error in send-quotation-email:", error);
+    res.status(500).json({
       success: false,
-      error: "Quotation email sending failed: " + error.message 
+      error: "Quotation email sending failed: " + error.message
     });
   }
 });
+
 
 // ✅ Export the router
 module.exports = router;
