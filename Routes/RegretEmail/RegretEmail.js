@@ -79,7 +79,7 @@ router.get("/email-history/:leadid", async (req, res) => {
 });
 
 // Add this route for sending regret emails
-// Add this route for sending regret emails with message_id support
+// Update your backend route to handle replies properly
 router.post("/send-regret-email", upload.array("files", 5), async (req, res) => {
   try {
     const {
@@ -94,7 +94,9 @@ router.post("/send-regret-email", upload.array("files", 5), async (req, res) => 
       bcc_emails,
       is_regret_email,
       message_id,
-      leadInfo
+      is_reply,
+      leadInfo,
+      original_email_info
     } = req.body;
 
     const files = req.files || [];
@@ -107,12 +109,15 @@ router.post("/send-regret-email", upload.array("files", 5), async (req, res) => 
     const cc = cc_emails ? JSON.parse(cc_emails) : [];
     const bcc = bcc_emails ? JSON.parse(bcc_emails) : [];
     const leadData = leadInfo ? JSON.parse(leadInfo) : null;
+    const originalEmailInfo = original_email_info ? JSON.parse(original_email_info) : null;
 
     if (!Array.isArray(receivers) || receivers.length === 0) {
       return res.status(400).json({ success: false, error: "Invalid receiver emails." });
     }
 
     console.log("📧 Starting regret email send process...");
+    console.log("Is Reply:", is_reply);
+    console.log("Original Message ID:", message_id);
 
     // Send emails to all recipients
     const emailPromises = receivers.map(async (receiver_email) => {
@@ -130,24 +135,26 @@ router.post("/send-regret-email", upload.array("files", 5), async (req, res) => 
           })),
         };
 
-        // Add email threading headers if message_id is provided
-        if (message_id) {
+        // Add email threading headers for replies
+        if (is_reply && message_id) {
           mailOptions.headers = {
             "In-Reply-To": message_id,
             "References": message_id,
           };
+          mailOptions.subject = mailOptions.subject; // Keep the "Re: " prefix
         }
 
         const info = await transporter.sendMail(mailOptions);
 
-        // Store in regret_emails table with lead information - FIXED SQL SYNTAX
+        // Store in regret_emails table with reply information
         const regretEmailSql = `
           INSERT INTO regret_emails (
             leadid, sender_email, receiver_email, subject, text, 
             file_path, type, email_sent, message_id, 
             cc_emails, bcc_emails, lead_name, business_name, 
-            lead_email, contact_number, status, opp_status, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            lead_email, contact_number, status, opp_status, 
+            is_reply, in_reply_to, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         `;
         
         const filePaths = files.map(f => `/uploads/${f.filename}`).join(',');
@@ -166,10 +173,12 @@ router.post("/send-regret-email", upload.array("files", 5), async (req, res) => 
           bcc.length > 0 ? JSON.stringify(bcc) : null,
           leadData?.lead_name || null,
           leadData?.business_name || null,
-          leadData?.email || null, // This goes into lead_email column
+          leadData?.email || null,
           leadData?.contact_number || null,
           leadData?.status || null,
-          leadData?.opp_status || null
+          leadData?.opp_status || null,
+          is_reply ? 1 : 0,
+          is_reply ? message_id : null
         ];
 
         console.log("Executing SQL with values:", values);
@@ -191,15 +200,17 @@ router.post("/send-regret-email", upload.array("files", 5), async (req, res) => 
     if (failedSends.length === 0) {
       res.json({
         success: true,
-        message: "Regret email sent successfully!",
-        sent_count: successfulSends.length
+        message: is_reply ? "Regret reply email sent successfully!" : "Regret email sent successfully!",
+        sent_count: successfulSends.length,
+        is_reply: is_reply
       });
     } else {
       res.json({
         success: true,
         message: `${successfulSends.length} regret emails sent successfully, ${failedSends.length} failed`,
         sent_count: successfulSends.length,
-        failed_count: failedSends.length
+        failed_count: failedSends.length,
+        is_reply: is_reply
       });
     }
 
