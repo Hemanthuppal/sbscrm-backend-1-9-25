@@ -47,10 +47,6 @@ const transporter = nodemailer.createTransport({
 
 
 
-
-export default transporter;
-
-
 // Add this route to get email history without CC and BCC
 router.get("/email-history/:leadid", async (req, res) => {
   try {
