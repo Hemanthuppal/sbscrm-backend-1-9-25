@@ -6,13 +6,17 @@ const db = require('../../Config/db');
 const path = require("path");
 const fs = require("fs");
 
-// Create uploads directory
-const uploadDir = path.join(__dirname, "uploads");
+// ✅ Create Uploads/quotation-uploads directory (outside current folder)
+const uploadDir = path.join(__dirname, "../../Uploads/quotation-uploads");
+
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+  console.log("📂 Created directory:", uploadDir);
+} else {
+  console.log("📂 Upload directory exists:", uploadDir);
 }
 
-// Multer Configuration
+// ✅ Multer Configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir);
@@ -27,11 +31,11 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  }
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
 });
 
-// Nodemailer Configuration
+// ✅ Nodemailer Configuration
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -43,7 +47,7 @@ const transporter = nodemailer.createTransport({
   tls: { rejectUnauthorized: false },
 });
 
-// 📩 Send Quotation Email Route
+// 📩 SEND QUOTATION EMAIL ROUTE
 router.post("/send-quotation-email", upload.array("files", 5), async (req, res) => {
   try {
     console.log("\n======================= 📧 NEW QUOTATION EMAIL REQUEST =======================");
@@ -78,7 +82,6 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     const bcc = bcc_emails ? JSON.parse(bcc_emails) : [];
     const quotation = quotationData ? JSON.parse(quotationData) : null;
 
-    // ✅ Parse the new details safely
     const receiverDetails = receiver_details ? JSON.parse(receiver_details) : {};
     const companyDetails = company_details ? JSON.parse(company_details) : {};
     const regardDetails = regard_details ? JSON.parse(regard_details) : {};
@@ -87,9 +90,6 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     console.log("✅ Parsed CC:", cc);
     console.log("✅ Parsed BCC:", bcc);
     console.log("✅ Quotation Data:", quotation);
-    console.log("✅ Receiver Details:", receiverDetails);
-    console.log("✅ Company Details:", companyDetails);
-    console.log("✅ Regard Details:", regardDetails);
 
     if (!Array.isArray(receivers) || receivers.length === 0) {
       console.error("❌ Invalid receiver emails.");
@@ -98,7 +98,7 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
 
     console.log("📧 Starting quotation email send process...");
 
-    // Generate quotation_id for tracking
+    // ✅ Generate quotation_id
     let newQuotationId = null;
     if (quotation) {
       try {
@@ -109,12 +109,7 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         if (quotationResult.length > 0 && quotationResult[0].quotation_id) {
           const lastQuotationId = quotationResult[0].quotation_id;
           const match = lastQuotationId.match(/Qu00(\d+)/);
-          if (match) {
-            const lastNumber = parseInt(match[1], 10);
-            newQuotationId = `Qu00${lastNumber + 1}`;
-          } else {
-            newQuotationId = "Qu001";
-          }
+          newQuotationId = match ? `Qu00${parseInt(match[1], 10) + 1}` : "Qu001";
         } else {
           newQuotationId = "Qu001";
         }
@@ -124,6 +119,10 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         newQuotationId = "Qu001";
       }
     }
+
+    // ✅ FIXED: Use Uploads/quotation-uploads path for stored file URLs
+    const filePaths = files.map(f => `/Uploads/quotation-uploads/${f.filename}`).join(',');
+    console.log("📁 File paths to store:", filePaths);
 
     // Send emails to all recipients
     const emailPromises = receivers.map(async (receiver_email) => {
@@ -137,7 +136,7 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
           html: text,
           attachments: files.map(file => ({
             filename: file.originalname,
-            path: file.path
+            path: file.path,
           })),
         };
 
@@ -146,25 +145,20 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             "In-Reply-To": quotation.message_id,
             "References": quotation.message_id,
           };
-          console.log("🔗 Replying to Thread:", quotation.message_id);
         }
-
-        console.log("📨 Sending MailOptions:", mailOptions);
 
         const info = await transporter.sendMail(mailOptions);
         console.log(`✅ Email sent to ${receiver_email}, MessageID: ${info.messageId}`);
 
-        const sql = `
+        // Insert into emails table
+        const emailSql = `
           INSERT INTO emails (
             leadid, sender_email, receiver_email, subject, text, 
             file_path, type, email_sent, message_id, quotation_id, 
             cc_emails, bcc_emails, created_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         `;
-
-        const filePaths = files.map(f => `/uploads/${f.filename}`).join(',');
-
-        const values = [
+        const emailValues = [
           leadid,
           sender_email,
           receiver_email,
@@ -176,20 +170,31 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
           info.messageId,
           newQuotationId,
           cc.length > 0 ? JSON.stringify(cc) : null,
-          bcc.length > 0 ? JSON.stringify(bcc) : null
+          bcc.length > 0 ? JSON.stringify(bcc) : null,
         ];
+        await db.query(emailSql, emailValues);
 
-        await db.query(sql, values);
-
-        // ✅ Insert into quotations table with new JSON fields
+        // ✅ Insert into quotations table
         if (quotation) {
           const quotationQuery = `
             INSERT INTO quotations 
               (lead_id, quotation_number, quotation_date, subtotal, gst, total_amount, products, 
-               sent_status, discount, discountType, quotation_body, terms_conditions,
-               receiver_details, company_details, regard_details)
-            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+               sent_status, discount, discountType, terms_conditions, quotation_body,
+               receiver_details, company_details, regard_details,
+               quotation_pdf, attachments, created_at)
+            VALUES (?, ?, CURDATE(), ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
           `;
+
+          const quotationPdfFile = files.find(file =>
+            file.originalname.toLowerCase().includes('quotation') ||
+            file.mimetype === 'application/pdf'
+          );
+
+          const quotationPdfPath = quotationPdfFile ? `/Uploads/quotation-uploads/${quotationPdfFile.filename}` : null;
+          const otherAttachments = files
+            .filter(file => file !== quotationPdfFile)
+            .map(file => `/Uploads/quotation-uploads/${file.filename}`)
+            .join(',');
 
           const quotationValues = [
             quotation.leadId,
@@ -200,19 +205,19 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
             JSON.stringify(quotation.products || []),
             quotation.discount || 0,
             quotation.discountType || "percentage",
-            quotation.quotation_body || "",
             quotation.terms_conditions || "",
+            quotation.quotation_body || "",
             JSON.stringify(receiverDetails || {}),
             JSON.stringify(companyDetails || {}),
-            JSON.stringify(regardDetails || {})
+            JSON.stringify(regardDetails || {}),
+            quotationPdfPath,
+            otherAttachments || null,
           ];
 
-          console.log("🗂 Inserting into Quotations Table:", quotationValues);
           await db.query(quotationQuery, quotationValues);
         }
 
         return { success: true, receiver: receiver_email, messageId: info.messageId };
-
       } catch (error) {
         console.error(`❌ Error sending email to ${receiver_email}:`, error);
         return { success: false, receiver: receiver_email, error: error.message };
@@ -220,8 +225,8 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
     });
 
     const results = await Promise.all(emailPromises);
-    const successfulSends = results.filter(result => result.success);
-    const failedSends = results.filter(result => !result.success);
+    const successfulSends = results.filter(r => r.success);
+    const failedSends = results.filter(r => !r.success);
 
     if (failedSends.length === 0) {
       res.json({
@@ -229,29 +234,48 @@ router.post("/send-quotation-email", upload.array("files", 5), async (req, res) 
         message: "Quotation email sent successfully!",
         quotation_id: newQuotationId,
         sent_count: successfulSends.length,
-        message_ids: successfulSends.map(s => s.messageId)
       });
     } else {
       res.json({
         success: true,
-        message: `${successfulSends.length} emails sent successfully, ${failedSends.length} failed`,
+        message: `${successfulSends.length} emails sent, ${failedSends.length} failed.`,
         quotation_id: newQuotationId,
         sent_count: successfulSends.length,
         failed_count: failedSends.length,
-        message_ids: successfulSends.map(s => s.messageId)
       });
     }
 
   } catch (error) {
     console.error("❌ Error in send-quotation-email:", error);
-    res.status(500).json({
-      success: false,
-      error: "Quotation email sending failed: " + error.message
-    });
+    res.status(500).json({ success: false, error: "Quotation email sending failed: " + error.message });
   }
 });
 
+// ✅ GET quotations by lead ID
+router.get("/quotations/:leadId", async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const [quotations] = await db.query(
+      `SELECT * FROM quotations WHERE lead_id = ? ORDER BY created_at DESC`,
+      [leadId]
+    );
 
+    const updatedQuotations = quotations.map(quotation => {
+      if (quotation.quotation_pdf && !quotation.quotation_pdf.startsWith('/Uploads/')) {
+        quotation.quotation_pdf = quotation.quotation_pdf.replace('/uploads/', '/Uploads/');
+      }
+      if (quotation.attachments && quotation.attachments.includes('/uploads/')) {
+        quotation.attachments = quotation.attachments.replace(/\/uploads\//g, '/Uploads/');
+      }
+      return quotation;
+    });
 
-// ✅ Export the router
+    res.json({ success: true, data: updatedQuotations, message: "Quotations fetched successfully" });
+  } catch (error) {
+    console.error("Error fetching quotations:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch quotations" });
+  }
+});
+
+// ✅ Export router
 module.exports = router;

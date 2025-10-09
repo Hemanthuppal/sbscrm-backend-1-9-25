@@ -20,16 +20,19 @@ const { fetchAndProcessEmails, testPort } = require('./EmailLeads/Eamilleads');
 const openRouterAI = require('./Aiprompt/Aiprompt');
 
 const Comment = require('./Routes/Comments/Comments');
-// const { fetchAndProcessEmails } = require('./EmailLeads/Eamilleads');
 const path = require("path");
+const fs = require("fs");
 const app = express();
 const PORT = process.env.PORT || 5000;
+
 app.use(bodyParser.json());
 app.use(cors());
 
+// ✅ Serve static files from correct directories
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/Uploads', express.static(path.join(__dirname, 'Uploads'))); // Serve from Uploads directory
 
-app.use("/uploads", express.static("uploads"));
+// Your API routes
 app.use('/api', Users);
 app.use('/api', Leads);
 app.use('/api', Employee);
@@ -41,11 +44,8 @@ app.use('/api', Assignment);
 app.use('/api',SendQuotationRoutes);
 app.use('/api', Comment);
 app.use('/api', InventoryRoutes);
- 
 app.use('/api', APIRoutes);
-
 app.use('/api', QuotationEmail);
-
 app.use('/api', RegretEmail);
 
 (async () => {
