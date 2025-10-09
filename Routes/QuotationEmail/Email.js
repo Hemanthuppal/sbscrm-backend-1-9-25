@@ -5,6 +5,11 @@ const router = express.Router();
 const db = require('../../Config/db');
 const path = require("path");
 const fs = require("fs");
+const dotenv = require("dotenv");
+
+
+// Load environment variables
+dotenv.config();
 
 // ✅ Create Uploads/quotation-uploads directory (outside current folder)
 const uploadDir = path.join(__dirname, "../../Uploads/quotation-uploads");
@@ -41,13 +46,15 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false,
   auth: {
-    user: "landnestiiiqbets@gmail.com",
-    pass: "ohzh apyb wvsm wkti",
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_APP_PASS,
   },
   tls: { rejectUnauthorized: false },
 });
 
-// 📩 SEND QUOTATION EMAIL ROUTE
+
+
+// 📩 Send Quotation Email Route
 router.post("/send-quotation-email", upload.array("files", 5), async (req, res) => {
   try {
     console.log("\n======================= 📧 NEW QUOTATION EMAIL REQUEST =======================");

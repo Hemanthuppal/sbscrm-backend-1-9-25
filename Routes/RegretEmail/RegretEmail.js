@@ -1,47 +1,51 @@
 const express = require("express");
 const multer = require("multer");
 const nodemailer = require("nodemailer");
-const router = express.Router(); // Add this line
-const db = require('../../Config/db'); // Adjust path as needed
+const dotenv = require("dotenv");
+const router = express.Router();
+const db = require("../../Config/db"); // Adjust path as needed
 const path = require("path");
 const fs = require("fs");
+
+// Load environment variables
+dotenv.config();
 
 // Create uploads directory
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 // Multer Configuration
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        const filename = `${file.fieldname}-${Date.now()}${ext}`;
-        cb(null, filename);
-    },
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const filename = `${file.fieldname}-${Date.now()}${ext}`;
+    cb(null, filename);
+  },
 });
 
-const upload = multer({ 
-    storage: storage,
-    limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB limit
-    }
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
 // Nodemailer Configuration
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-        user: "landnestiiiqbets@gmail.com",
-        pass: "ohzh apyb wvsm wkti",
-    },
-    tls: { rejectUnauthorized: false },
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_APP_PASS,
+  },
+  tls: { rejectUnauthorized: false },
 });
+
+
 
 // Add this route to get email history without CC and BCC
 router.get("/email-history/:leadid", async (req, res) => {
@@ -78,8 +82,7 @@ router.get("/email-history/:leadid", async (req, res) => {
   }
 });
 
-// Add this route for sending regret emails
-// Update your backend route to handle replies properly
+// Add this route for sending regret emails with message_id support
 router.post("/send-regret-email", upload.array("files", 5), async (req, res) => {
   try {
     const {
